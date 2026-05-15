@@ -79,10 +79,10 @@ This wand has 7 charges. Roll on the effects table."""
     assert "Item Type Found: Wand" in output
     assert "Formula Category: Complex Multi-Ability Magic Item" in output
     assert "Charges: 7" in output
-    assert "randomized/table-driven effects need a utility strength" in output
-    assert "?gs buy Wand of Wonder, rare wand, minor utility, 7 charges" in output
-    assert "?gs buy Wand of Wonder, rare wand, reusable utility, 7 charges" in output
-    assert "?gs buy Wand of Wonder, rare wand, broad utility, 7 charges" in output
+    assert "Randomized/table-driven effects cannot be priced automatically." in output
+    assert "minor = 4 impact" in output
+    assert "reusable = 6 impact" in output
+    assert "broad = 8 impact" in output
     assert "8d6" not in output
 
 
@@ -221,6 +221,76 @@ def test_missing_impact_asks_only_for_impact_and_gives_utility_retries():
     assert "?gs buy Wand of Wonder, rare wand, minor utility, 7 charges" in output
     assert "?gs buy Wand of Wonder, rare wand, reusable utility, 7 charges" in output
     assert "?gs buy Wand of Wonder, rare wand, broad utility, 7 charges" in output
+
+
+def test_bare_wand_of_wonder_asks_for_description_not_utility_tiers():
+    output = render_gs("?gs buy wand of wonder")
+
+    assert "**Final Price**" not in output
+    assert "I found **Wand of Wonder**, but I need the item description before I can price it." in output
+    assert "Paste the item text from Avrae or D&D Beyond after:" in output
+    assert "?gs buy" in output
+    assert "minor utility" not in output
+    assert "reusable utility" not in output
+    assert "broad utility" not in output
+    assert "8d6 aoe" not in output
+
+
+def test_bare_staff_of_power_asks_for_description():
+    output = render_gs("?gs buy staff of power")
+
+    assert "**Final Price**" not in output
+    assert "I found **Staff of Power**, but I need the item description before I can price it." in output
+    assert "Paste the item text from Avrae or D&D Beyond after:" in output
+
+
+def test_bare_alchemy_jug_asks_for_description():
+    output = render_gs("?gs buy alchemy jug")
+
+    assert "**Final Price**" not in output
+    assert "I found **Alchemy Jug**, but I need the item description before I can price it." in output
+    assert "Paste the item text from Avrae or D&D Beyond after:" in output
+
+
+def test_bare_necklace_of_fireballs_asks_for_description():
+    output = render_gs("?gs buy necklace of fireballs")
+
+    assert "**Final Price**" not in output
+    assert "I found **Necklace of Fireballs**, but I need the item description before I can price it." in output
+    assert "Paste the item text from Avrae or D&D Beyond after:" in output
+
+
+def test_pasted_spell_name_without_dice_asks_for_dice():
+    output = render_gs(
+        """?gs buy
+Wand of Fireballs
+Wand, rare
+Description
+This wand lets you cast fireball."""
+    )
+
+    assert "**Final Price**" not in output
+    assert "I found a spell effect, but no damage or healing dice." in output
+    assert "Add the dice manually, or paste a description that includes them." in output
+    assert "8d6" not in output
+    assert "minor = 4 impact" not in output
+
+
+def test_flame_tongue_description_prices_from_2d6_without_aoe():
+    output = render_gs(
+        """?gs buy
+Flame Tongue
+Weapon (Any Melee Weapon), rare
+Description
+While the sword is ablaze, it deals an extra 2d6 Fire damage on a hit."""
+    )
+
+    assert "**Item:** Flame Tongue" in output
+    assert "Formula Category: Weapon / Armor Upgrade" in output
+    assert "Impact: 2d6" in output
+    assert "AoE" not in output
+    assert "2d6 average = 7 impact" in output
+    assert "**Final Price**" in output
 
 
 def test_missing_rarity_and_category_preserves_impact():

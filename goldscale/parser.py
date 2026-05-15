@@ -198,6 +198,8 @@ class ItemData:
     sell_rate_retry_command: Optional[str] = None
     mode: str = "buy"
     randomized: bool = False
+    has_description_text: bool = False
+    spell_effect_without_dice: bool = False
     complex_partial_bonus: bool = False
     warnings: list[str] = field(default_factory=list)
 
@@ -681,6 +683,27 @@ def find_randomized_item_markers(text: str) -> bool:
     return any(marker in lower for marker in markers)
 
 
+def has_pasted_description(text: str) -> bool:
+    return bool(
+        re.search(
+            r"\b(description|attunement|requires attunement|regaining charges|while holding it|this item|this wand|this staff|this weapon)\b",
+            text,
+            flags=re.IGNORECASE,
+        )
+    )
+
+
+def find_spell_effect_without_dice(text: str, damage: Optional[str], healing: Optional[str]) -> bool:
+    if damage or healing:
+        return False
+
+    lower = text.lower()
+    if not has_pasted_description(lower):
+        return False
+
+    return bool(re.search(r"\b(cast|casts|spell|spellcasting|fireball|cure wounds|magic missile)\b", lower))
+
+
 def clean_lines_after_mode(text: str) -> list[str]:
     cleaned = remove_old_prefix_accidents(text)
     _, cleaned = split_mode(cleaned)
@@ -817,6 +840,8 @@ def parse_item_text(raw: str) -> ItemData:
     data.aoe = find_aoe(body)
     data.utility = find_utility(body)
     data.randomized = find_randomized_item_markers(body)
+    data.has_description_text = has_pasted_description(body)
+    data.spell_effect_without_dice = find_spell_effect_without_dice(body, data.damage, data.healing)
 
     if data.mode == "sell":
         data.sell_rate, warning = find_sell_rate(body)

@@ -26,7 +26,6 @@ from goldscale.parser import (
     find_damage_or_healing,
     find_dice_expressions,
     find_explicit_category,
-    find_official_price,
     find_randomized_item_markers,
     find_rarity,
     find_sell_rate,

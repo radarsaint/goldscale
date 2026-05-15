@@ -100,6 +100,62 @@ def build_retry_options(data: ItemData) -> str:
     return build_retry_example(data)
 
 
+def should_request_description(data: ItemData) -> bool:
+    return bool(
+        data.item_name
+        and not data.has_description_text
+        and not data.rarity
+        and not data.unsupported_rarity
+        and not has_impact(data)
+        and not data.sell_rate_error
+    )
+
+
+def format_description_request(data: ItemData) -> str:
+    return f"""
+I found **{data.item_name}**, but I need the item description before I can price it.
+
+Paste the item text from Avrae or D&D Beyond after:
+```text
+?gs buy
+```
+
+Goldscale will read the rarity, item type, charges, damage/healing dice, and other pricing evidence.
+""".strip()
+
+
+def format_spell_dice_request(data: ItemData) -> str:
+    return f"""
+I found **{data.item_name or "that item"}**, but I cannot price it yet.
+
+I found a spell effect, but no damage or healing dice.
+Add the dice manually, or paste a description that includes them.
+
+**Read so far**
+```text
+{read_as_block(data, player_language=True)}
+```
+""".strip()
+
+
+def format_randomized_utility_request(data: ItemData) -> str:
+    return f"""
+I found **{data.item_name or "that item"}**, but I cannot price it yet.
+
+Randomized/table-driven effects cannot be priced automatically. Choose the DM appraisal that best matches the item:
+```text
+minor = 4 impact
+reusable = 6 impact
+broad = 8 impact
+```
+
+**Read so far**
+```text
+{read_as_block(data, player_language=True)}
+```
+""".strip()
+
+
 def read_as_block(data: ItemData, player_language: bool = False) -> str:
     pieces = [
         f"Item: {data.item_name or 'Missing'}",
@@ -171,6 +227,15 @@ def read_as_block(data: ItemData, player_language: bool = False) -> str:
 def format_missing(data: ItemData) -> str:
     if data.rejection_error:
         return data.rejection_error
+
+    if should_request_description(data):
+        return format_description_request(data)
+
+    if data.spell_effect_without_dice and not has_impact(data):
+        return format_spell_dice_request(data)
+
+    if data.randomized and data.has_description_text and not has_impact(data):
+        return format_randomized_utility_request(data)
 
     missing = missing_fields(data)
     retry_options = build_retry_options(data)

@@ -53,6 +53,16 @@ def test_recharge_dice_are_not_damage():
     assert data.charges is None
 
 
+def test_srd_style_last_charge_d20_is_not_damage():
+    data = parse_item_text(
+        "?gs buy fragile wand, uncommon wand. This wand has 7 charges. If you expend the last charge, roll a d20. On a 1, the wand is destroyed."
+    )
+
+    assert data.damage is None
+    assert data.healing is None
+    assert data.charges == 7
+
+
 def test_randomized_table_driven_items_require_explicit_impact():
     data = parse_item_text("?gs buy wand of wonder, rare wand. Roll on the effects table.")
 
@@ -61,6 +71,50 @@ def test_randomized_table_driven_items_require_explicit_impact():
     assert missing_fields(data) == [
         "Impact: choose a utility tier: minor utility, reusable utility, or broad utility"
     ]
+
+
+def test_save_dc_and_range_are_not_impact_or_aoe():
+    data = parse_item_text(
+        "?gs buy control wand, rare wand. This wand has 7 charges. Choose one creature you can see within 120 feet. The target must make a DC 15 Wisdom saving throw."
+    )
+
+    assert data.damage is None
+    assert data.healing is None
+    assert data.bonus is None
+    assert data.aoe is False
+    assert data.charges == 7
+
+
+def test_point_of_origin_alone_is_not_aoe():
+    data = parse_item_text(
+        "?gs buy point wand, rare wand. Choose a point of origin within 120 feet of you."
+    )
+
+    assert data.aoe is False
+
+
+def test_quantity_dice_are_not_damage():
+    data = parse_item_text("?gs buy bead necklace, rare consumable, 1d6 + 3 beads")
+
+    assert data.damage is None
+    assert data.healing is None
+
+
+def test_explicit_area_shape_still_sets_aoe():
+    data = parse_item_text("?gs buy blast wand, rare complex, 8d6 damage in a 20-foot radius")
+
+    assert data.damage == "8d6"
+    assert data.aoe is True
+
+
+def test_charged_complex_bonus_still_needs_explicit_impact_basis():
+    data = parse_item_text(
+        "?gs buy power staff, very rare staff. You gain a +1 bonus while holding it. This staff has 20 charges."
+    )
+
+    assert data.bonus == 1
+    assert data.charges == 20
+    assert data.complex_partial_bonus is True
 
 
 def test_sell_percent_requires_percent_sign():

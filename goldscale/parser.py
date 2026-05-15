@@ -343,6 +343,7 @@ def find_dice_expressions(text: str) -> list[tuple[str, int, int]]:
 
 def dice_is_recharge_or_table_roll(lower: str, start: int, end: int, allow_charge_count_clause: bool = False) -> bool:
     window = lower[max(0, start - 80): min(len(lower), end + 120)]
+    after_dice = lower[end: min(len(lower), end + 80)]
 
     reject_terms = [
         "regains",
@@ -361,9 +362,11 @@ def dice_is_recharge_or_table_roll(lower: str, start: int, end: int, allow_charg
     if any(term in window for term in reject_terms):
         return True
 
+    if re.match(r"^[\s,]*(beads?|stars?|charges?|uses?)\b", after_dice):
+        return True
+
     # Strongly reject dice whose nearby noun is charges, unless it is clearly damage/healing.
     if "charge" in window and not any(term in window for term in ("damage", "healing", "hit points")):
-        after_dice = lower[end: min(len(lower), end + 80)]
         if allow_charge_count_clause and re.match(r"^[\s,]*(?:aoe|area of effect)?[\s,]*\d+\s+charges?\b", after_dice):
             return False
         return True
@@ -409,7 +412,6 @@ def find_aoe(text: str) -> bool:
         r"\baoe\b",
         r"\barea of effect\b",
         r"\b\d+\s*-?\s*foot\s+radius\b",
-        r"\bwithin\s+\d+\s+feet\b",
         r"\bradius\b",
         r"\bsphere\b",
         r"\bcone\b",

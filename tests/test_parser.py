@@ -1,6 +1,7 @@
 import pytest
 
-from goldscale_bot import missing_fields, parse_item_text
+from goldscale.parser import parse_item_text
+from goldscale.pricing import missing_fields
 
 
 def test_detects_supported_and_unsupported_rarity():

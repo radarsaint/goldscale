@@ -1,0 +1,2 @@
+"""Goldscale Discord bot package."""
+

@@ -1,12 +1,7 @@
 import pytest
 
-from goldscale_bot import (
-    ItemData,
-    average_dice,
-    calculate_price,
-    clean_shop_value,
-    parse_item_text,
-)
+from goldscale.parser import ItemData, parse_item_text
+from goldscale.pricing import average_dice, calculate_price, clean_shop_value
 
 
 def test_average_dice_math():

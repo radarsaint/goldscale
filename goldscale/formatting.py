@@ -146,6 +146,8 @@ def format_missing(data: ItemData) -> str:
     extra_note = ""
     if data.sell_rate_error:
         extra_note = "\n\n" + data.sell_rate_error
+        if data.sell_rate_error == "Sell rate must be between 1% and 100%.":
+            extra_note += " Use a value from 1% to 100%, e.g. at 75%."
         if data.warnings and data.warnings[0] != data.sell_rate_error:
             extra_note += " " + " ".join(data.warnings)
     elif data.unsupported_rarity:
@@ -180,6 +182,10 @@ def format_result(result: PricingResult) -> str:
     if result.warnings:
         warnings = "\n\n**Warnings**\n" + "\n".join(f"• {warning}" for warning in result.warnings)
 
+    official_override_note = ""
+    if result.impact_math == "Official price override used.":
+        official_override_note = "\nOfficial price override ignores rarity/category formula limits."
+
     if result.mode == "sell":
         return f"""
 **Item:** {result.item_name}
@@ -190,7 +196,7 @@ def format_result(result: PricingResult) -> str:
 ```
 
 **Impact Calculation**
-{result.impact_math}
+{result.impact_math}{official_override_note}
 
 **Rarity Band**
 {result.rarity}
@@ -220,7 +226,7 @@ def format_result(result: PricingResult) -> str:
 ```
 
 **Impact Calculation**
-{result.impact_math}
+{result.impact_math}{official_override_note}
 
 **Rarity Band**
 {result.rarity}
@@ -238,52 +244,48 @@ def format_result(result: PricingResult) -> str:
 
 def help_text() -> str:
     return """
-**Goldscale 2 Help**
+**Goldscale Help**
 
-Use `?gs buy` to price an item.
-
-Examples:
 ```text
 ?gs buy +1 sword uncommon weapon
 ?gs buy wand of fireballs, rare complex, 8d6 aoe, 7 charges
 ?gs buy potion of healing, common consumable, 2d4+2 healing
 ?gs buy cloak of useful nonsense, uncommon utility, reusable
 ?gs buy wand of wonder, rare complex, broad utility, 7 charges
+?gs sell +1 sword uncommon weapon at 75%
+?formula
 ```
 
-You can paste an Avrae item description after `?gs buy`. Goldscale will scan it for item name, rarity, type, dice, charges, and clear AoE language.
+Goldscale prices from explicit inputs:
+```text
+rarity + category + impact
+```
+
+Supported rarity:
+```text
+common, uncommon, rare, very rare
+```
+
+Supported category:
+```text
+consumable, weapon, armor, utility, complex
+```
+
+Impact examples:
+```text
++1, +2, +3
+8d6
+2d4+2 healing
+minor utility, reusable utility, broad utility
+```
+
+You can paste an Avrae item description after `?gs buy`.
 
 If a pasted item description names a spell but does not include damage/healing dice, add the dice manually.
 
-Goldscale needs:
-```text
-Item name
-Rarity: common, uncommon, rare, or very rare
-Category: consumable, weapon, armor, utility, or complex
-Impact: +1/+2/+3, dice like 8d6, healing like 2d4+2 healing, or utility tier: minor/reusable/broad
-```
+Goldscale will not invent utility tiers, official prices, or hidden item mechanics.
 
-Utility tiers are deliberate pricing inputs:
-```text
-minor utility = 4 impact
-reusable utility = 6 impact
-broad utility = 8 impact
-```
-
-Goldscale will not invent a utility tier from item description prose.
-
-Sell mode:
-```text
-?gs sell +1 sword uncommon weapon
-?gs sell +1 sword uncommon weapon at 75%
-```
-
-Sell defaults to 50%. To change it, include a percent sign. Bare numbers are not treated as sell rates.
-
-Formula:
-```text
-?formula
-```
+Sell defaults to 50%. Custom sell rates need a percent sign, e.g. `at 75%`.
 """.strip()
 
 

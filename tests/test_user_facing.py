@@ -58,6 +58,7 @@ def test_invalid_sell_percent_blocks_with_range_error():
     for output in (zero, high):
         assert "**Sell Price**" not in output
         assert "Sell rate must be between 1% and 100%." in output
+        assert "Use a value from 1% to 100%, e.g. at 75%." in output
         assert "percent sign" not in output
         assert "Sell Rate: Missing or invalid" in output
 
@@ -135,6 +136,7 @@ def test_official_price_override_wins_even_with_unsupported_rarity():
 
     assert "**Item:** Legendary Crown" in output
     assert "Official price override used." in output
+    assert "Official price override ignores rarity/category formula limits." in output
     assert "**Final Price**\n**50,000 gp**" in output
     assert "outside this formula" not in output
 
@@ -152,7 +154,9 @@ def test_flattened_avrae_paste_drops_generic_speaker_text():
 def test_help_mentions_manual_spell_dice_requirement():
     from goldscale.formatting import help_text
 
-    assert (
-        "If a pasted item description names a spell but does not include damage/healing dice, add the dice manually."
-        in help_text()
-    )
+    output = help_text()
+
+    assert output.startswith("**Goldscale Help**\n\n```text\n?gs buy +1 sword uncommon weapon")
+    assert "If a pasted item description names a spell but does not include damage/healing dice, add the dice manually." in output
+    assert "Goldscale will not invent utility tiers, official prices, or hidden item mechanics." in output
+    assert "Custom sell rates need a percent sign, e.g. `at 75%`." in output

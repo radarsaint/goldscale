@@ -58,7 +58,9 @@ def test_randomized_table_driven_items_require_explicit_impact():
 
     assert data.randomized is True
     assert data.category == "complex"
-    assert "Impact: choose one pricing input" in missing_fields(data)[0]
+    assert missing_fields(data) == [
+        "Impact: choose a utility tier: minor utility, reusable utility, or broad utility"
+    ]
 
 
 def test_sell_percent_requires_percent_sign():
@@ -74,4 +76,7 @@ def test_bare_sell_number_is_warning_not_sell_rate():
 
     assert data.mode == "sell"
     assert data.sell_rate == pytest.approx(0.50)
+    assert data.sell_rate_error == "I need the sell rate with a percent sign."
+    assert data.sell_rate_retry_command == "?gs sell +1 sword uncommon weapon at 75%"
     assert data.warnings == ['I found "75" but not "75%." For sell rates, include the percent sign.']
+    assert missing_fields(data)[0] == "Sell rate: include the percent sign"

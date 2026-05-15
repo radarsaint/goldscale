@@ -92,6 +92,9 @@ def has_impact(data: ItemData) -> bool:
 def missing_fields(data: ItemData) -> list[str]:
     missing = []
 
+    if data.sell_rate_error:
+        missing.append("Sell rate: include the percent sign")
+
     if data.unsupported_rarity:
         missing.append(f"Rarity: {data.unsupported_rarity} is outside this formula. Use common, uncommon, rare, or very rare.")
         return missing
@@ -106,7 +109,7 @@ def missing_fields(data: ItemData) -> list[str]:
         if data.complex_partial_bonus:
             missing.append("Impact: found a +bonus on a charged complex item, but that is probably not the whole item. Choose a pricing input: minor utility, reusable utility, broad utility, dice like 8d6, or provide an official price")
         elif data.randomized:
-            missing.append("Impact: choose one pricing input: minor utility, reusable utility, broad utility, +1/+2/+3, dice like 8d6, or healing like 2d4+2 healing")
+            missing.append("Impact: choose a utility tier: minor utility, reusable utility, or broad utility")
         else:
             missing.append("Impact: +1/+2/+3, dice like 8d6, healing like 2d4+2 healing, or utility tier: minor/reusable/broad")
 

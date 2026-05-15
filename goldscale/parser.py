@@ -94,6 +94,9 @@ class ItemData:
     charges: Optional[int] = None
     official_price: Optional[int] = None
     sell_rate: Optional[float] = None
+    sell_rate_error: Optional[str] = None
+    sell_rate_retry: Optional[str] = None
+    sell_rate_retry_command: Optional[str] = None
     mode: str = "buy"
     randomized: bool = False
     complex_partial_bonus: bool = False
@@ -267,6 +270,40 @@ def find_sell_rate(text: str) -> tuple[Optional[float], Optional[str]]:
         return None, f'I found "{number}" but not "{number}%." For sell rates, include the percent sign.'
 
     return None, None
+
+
+def build_sell_rate_retry_command(body: str, number: str) -> str:
+    retry_body = re.sub(
+        rf"\b(at|for|custom)\s+{re.escape(number)}\b",
+        rf"\1 {number}%",
+        body,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+    return f"?gs sell {normalize_spaces(retry_body)}"
+
+
+def item_name_before_pricing_signals(text: str) -> Optional[str]:
+    cleaned = normalize_spaces(text)
+    if not cleaned:
+        return None
+
+    signal_pattern = re.compile(
+        r"\b("
+        r"common|uncommon|rare|very\s+rare|veryrare|vr|legendary|artifact|"
+        r"consumable|utility|complex|weapon\s*/\s*armor|weapon armor|armor|armour|"
+        r"\d+d\d+(?:\s*[+-]\s*\d+)?|aoe|area of effect|minor|reusable|broad|"
+        r"\d+\s+charges?|charges?\s*[:=]?\s*\d+|official price|official|at\s+\d{1,3}%?"
+        r")\b",
+        flags=re.IGNORECASE,
+    )
+    match = signal_pattern.search(cleaned)
+
+    if not match:
+        return None
+
+    candidate = cleaned[:match.start()].strip(" ,;:")
+    return candidate or None
 
 
 def remove_dice_expressions(text: str) -> str:
@@ -466,6 +503,9 @@ def extract_item_name(text: str) -> Optional[str]:
     if lines:
         first = strip_known_speaker_prefix(lines[0])
         if not re.search(r"\b(description|attunement|requires attunement|this item|this wand|this weapon)\b", first, flags=re.IGNORECASE):
+            signal_candidate = item_name_before_pricing_signals(first)
+            if signal_candidate:
+                return title_item_name(signal_candidate)
             if "," in first:
                 candidate = first.split(",", 1)[0]
                 if candidate.strip():
@@ -522,6 +562,13 @@ def remove_known_signals_for_name(text: str) -> str:
     return cleaned
 
 
+def trim_repeated_category_from_bonus_name(name: str) -> str:
+    if not re.match(r"^\+[123]\b", name, flags=re.IGNORECASE):
+        return name
+
+    return re.sub(r"\s+(weapon|armor|armour)$", "", name, flags=re.IGNORECASE)
+
+
 def parse_item_text(raw: str) -> ItemData:
     text = remove_old_prefix_accidents(raw)
     mode, body = split_mode(text)
@@ -546,7 +593,12 @@ def parse_item_text(raw: str) -> ItemData:
     if data.mode == "sell":
         data.sell_rate, warning = find_sell_rate(body)
         if warning:
+            data.sell_rate_error = "I need the sell rate with a percent sign."
             data.warnings.append(warning)
+            match = re.search(r'"(\d{1,3})"', warning)
+            if match:
+                data.sell_rate_retry = match.group(1)
+                data.sell_rate_retry_command = build_sell_rate_retry_command(body, data.sell_rate_retry)
         if data.sell_rate is None:
             data.sell_rate = 0.50
 
@@ -559,6 +611,9 @@ def parse_item_text(raw: str) -> ItemData:
         data.category = inferred_category
         data.category_source = source
 
+    if data.item_name and data.category_source == "explicit category":
+        data.item_name = title_item_name(trim_repeated_category_from_bonus_name(data.item_name))
+
     if (
         data.category == "complex"
         and data.charges
@@ -570,4 +625,3 @@ def parse_item_text(raw: str) -> ItemData:
         data.complex_partial_bonus = True
 
     return data
-

@@ -39,6 +39,8 @@ def build_retry_example(data: ItemData) -> str:
 
     if mode == "sell" and data.sell_rate and data.sell_rate != 0.50:
         command += f" at {int(data.sell_rate * 100)}%"
+    elif mode == "sell" and data.sell_rate_retry:
+        command += f" at {data.sell_rate_retry}%"
 
     return command
 
@@ -50,6 +52,11 @@ def build_retry_options(data: ItemData) -> str:
     category = data.category or "complex"
 
     suffix = f", {data.charges} charges" if data.charges else ""
+
+    if data.sell_rate_error:
+        if data.sell_rate_retry_command:
+            return data.sell_rate_retry_command
+        return build_retry_example(data)
 
     if not has_impact(data):
         options = [
@@ -129,16 +136,21 @@ def format_missing(data: ItemData) -> str:
     missing = missing_fields(data)
     retry_options = build_retry_options(data)
 
+    need_text = "I need:"
     extra_note = ""
-    if data.complex_partial_bonus and not has_impact(data):
-        extra_note = "\n\nGoldscale found a +bonus on a charged complex item, but charged complex items often have additional priced effects. It will not treat the +bonus alone as the whole item unless you explicitly price it that way."
+    if data.sell_rate_error:
+        extra_note = "\n\nI need the sell rate with a percent sign. " + " ".join(data.warnings)
+    elif data.complex_partial_bonus and not has_impact(data):
+        need_text = "I need an explicit impact basis."
+        extra_note = "\n\nGoldscale found a +bonus, but charged complex items may have additional priced effects. It will not treat the +bonus alone as the whole item unless you explicitly price it that way."
     elif data.randomized and not has_impact(data):
-        extra_note = "\n\nGoldscale found randomized/table-driven effect text and will not price it until you supply an impact."
+        extra_note = "\n\nGoldscale found randomized/table-driven effects need an explicit impact. It will not price this until you choose the impact basis."
 
     return f"""
 I found **{data.item_name or "that item"}**, but I cannot price it yet.
 
 **Missing**
+{need_text}
 {chr(10).join(f"• {item}" for item in missing)}{extra_note}
 
 **Read so far**

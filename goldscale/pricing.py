@@ -2,7 +2,7 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
-from goldscale.parser import ItemData, UTILITY_IMPACT
+from goldscale.parser import FORMULA_CATEGORY_DISPLAY, ItemData, UTILITY_IMPACT
 
 
 RARITY_GPI = {
@@ -110,7 +110,7 @@ def missing_fields(data: ItemData) -> list[str]:
     if not data.rarity:
         missing.append("Rarity: common, uncommon, rare, or very rare")
 
-    if not data.category:
+    if not (data.formula_category or data.category):
         missing.append("Item type: wand, staff, potion, scroll, weapon, armor, shield, ring, cloak, wondrous item, or charged item")
 
     if not has_impact(data):
@@ -135,7 +135,7 @@ def calculate_price(data: ItemData) -> PricingResult:
     quantity = data.quantity if data.quantity and data.quantity > 1 else None
 
     rarity = data.rarity
-    category = data.category
+    category = data.formula_category or data.category
 
     if rarity not in RARITY_GPI:
         raise ValueError("Rarity must be Common, Uncommon, Rare, or Very Rare.")
@@ -191,7 +191,7 @@ def calculate_price(data: ItemData) -> PricingResult:
         impact=impact,
         impact_math=impact_math,
         rarity=rarity.title(),
-        category=category.title(),
+        category=FORMULA_CATEGORY_DISPLAY[category],
         gpi=gpi,
         list_price=list_price,
         final_price=final_price,

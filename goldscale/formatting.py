@@ -1,21 +1,23 @@
-from goldscale.parser import ItemData
+from goldscale.parser import FORMULA_CATEGORY_DISPLAY, ItemData
 from goldscale.pricing import PricingResult, has_impact, missing_fields
 
 
 def item_type_retry_text(data: ItemData) -> str:
-    if data.category_source and data.category_source.startswith('inferred from "'):
-        return data.category_source.split('"', 2)[1]
+    if data.item_type_found:
+        return data.item_type_found
 
-    if data.category == "consumable":
+    category = data.formula_category or data.category
+
+    if category == "consumable":
         return "potion"
 
-    if data.category == "weapon / armor":
+    if category == "weapon / armor":
         return "weapon"
 
-    if data.category == "utility":
+    if category == "utility":
         return "cloak"
 
-    if data.category == "complex":
+    if category == "complex":
         return "wand"
 
     if data.bonus is not None:
@@ -54,7 +56,7 @@ def build_retry_example(data: ItemData) -> str:
 
     if data.charges:
         parts.append(f"{data.charges} charges")
-    elif data.category == "complex" and impact != "impact here":
+    elif data.formula_category == "complex" and impact != "impact here":
         parts.append("7 charges")
 
     command = ", ".join(parts)
@@ -109,13 +111,16 @@ def read_as_block(data: ItemData, player_language: bool = False) -> str:
     else:
         pieces.append(f"Rarity: {data.rarity.title() if data.rarity else 'Missing'}")
 
-    if data.category:
-        source = f" ({data.category_source})" if data.category_source else ""
-        label = "Item Type" if player_language else "Category"
-        pieces.append(f"{label}: {data.category.title()}{source}")
+    if data.item_type_found:
+        pieces.append(f"Item Type Found: {data.item_type_found.title()}")
+
+    category = data.formula_category or data.category
+    if category:
+        pieces.append(f"Formula Category: {FORMULA_CATEGORY_DISPLAY[category]}")
+        if data.formula_category_source:
+            pieces.append(f"Category Source: {data.formula_category_source}")
     else:
-        label = "Item Type" if player_language else "Category"
-        pieces.append(f"{label}: Missing")
+        pieces.append("Formula Category: Missing")
 
     if data.charges:
         pieces.append(f"Charges: {data.charges}")
@@ -226,7 +231,7 @@ def format_result(result: PricingResult) -> str:
 **Rarity Band**
 {result.rarity}
 
-**Item Category**
+**Formula Category**
 {result.category}
 
 **Gold Per Impact**
@@ -257,7 +262,7 @@ def format_result(result: PricingResult) -> str:
 **Rarity Band**
 {result.rarity}
 
-**Item Category**
+**Formula Category**
 {result.category}
 
 **Gold Per Impact**
@@ -310,7 +315,7 @@ common, uncommon, rare, very rare
 
 Supported item type words include:
 ```text
-wand, staff, rod, potion, scroll, ammunition, weapon, armor, shield, sword, bow, ring, cloak, boots, amulet, wondrous item, charged item
+wand, staff, potion, scroll, ammunition, weapon, armor, shield, sword, bow, ring, cloak, boots, amulet, wondrous item, charged item
 ```
 
 What the magic item changes:
@@ -347,7 +352,7 @@ AoE:
 AoE Impact = average roll × 4
 ```
 
-Weapon / armor bonus:
+Weapon / Armor Upgrade bonus:
 ```text
 Impact per level = bonus × 24
 ```
@@ -362,14 +367,14 @@ AoE charged item:
 Impact = average effect × 4 × charges
 ```
 
-Utility:
+Utility Item:
 ```text
 Minor = 4
 Reusable = 6
 Broad = 8
 ```
 
-Charged utility:
+Charged Utility Item:
 ```text
 Impact = utility impact × charges
 ```
@@ -392,25 +397,25 @@ All categories = 10 gp
 Uncommon:
 ```text
 Consumable 30
-Weapon / Armor 50
-Utility 60
-Complex 80
+Weapon / Armor Upgrade 50
+Utility Item 60
+Complex Multi-Ability Magic Item 80
 ```
 
 Rare:
 ```text
 Consumable 80
-Weapon / Armor 120
-Utility 150
-Complex 200
+Weapon / Armor Upgrade 120
+Utility Item 150
+Complex Multi-Ability Magic Item 200
 ```
 
 Very Rare:
 ```text
 Consumable 200
-Weapon / Armor 300
-Utility 400
-Complex 500
+Weapon / Armor Upgrade 300
+Utility Item 400
+Complex Multi-Ability Magic Item 500
 ```
 
 **4. Price**

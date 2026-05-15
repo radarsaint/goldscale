@@ -21,7 +21,11 @@ def test_parses_explicit_category():
     data = parse_item_text("?gs buy useful cloak, uncommon utility, reusable")
 
     assert data.category == "utility"
-    assert data.category_source == "explicit category"
+    assert data.category_source == 'explicit formula category "utility"'
+    assert data.formula_category == "utility"
+    assert data.formula_category_source == 'explicit formula category "utility"'
+    assert data.formula_category_confidence == "explicit"
+    assert data.item_type_found is None
     assert data.utility == "reusable"
 
 
@@ -29,7 +33,12 @@ def test_infers_category_from_item_type_only():
     data = parse_item_text("?gs buy plain wand, rare, 8d6")
 
     assert data.category == "complex"
-    assert data.category_source == 'inferred from "wand"'
+    assert data.category_source == 'from item type "wand"'
+    assert data.item_type_found == "wand"
+    assert data.item_type_source == 'from item type "wand"'
+    assert data.formula_category == "complex"
+    assert data.formula_category_source == 'from item type "wand"'
+    assert data.formula_category_confidence == "strong"
 
 
 @pytest.mark.parametrize(
@@ -50,7 +59,44 @@ def test_infers_category_from_item_type_only():
 def test_item_description_words_map_to_formula_categories(word, category):
     data = parse_item_text(f"?gs buy test item rare {word} 8d6")
 
+    assert data.item_type_found == word
+    assert data.formula_category == category
     assert data.category == category
+
+
+def test_formula_word_complex_sets_formula_category_not_item_type():
+    data = parse_item_text("?gs buy wand of fireballs rare complex 8d6 aoe 7 charges")
+
+    assert data.item_type_found is None
+    assert data.formula_category == "complex"
+    assert data.formula_category_source == 'explicit formula category "complex"'
+    assert data.formula_category_confidence == "explicit"
+
+
+def test_soft_utility_charged_damage_creates_formula_category_conflict():
+    data = parse_item_text("?gs buy ring of blasting rare ring 8d6 aoe 5 charges")
+
+    assert data.item_type_found == "ring"
+    assert data.formula_category == "utility"
+    assert data.formula_category_conflict is not None
+    assert "mixed item-type signals" in data.formula_category_conflict
+
+
+def test_wondrous_item_charged_damage_creates_formula_category_conflict():
+    data = parse_item_text("?gs buy necklace of fireballs rare wondrous item 8d6 aoe 3 charges")
+
+    assert data.item_type_found == "wondrous item"
+    assert data.formula_category == "utility"
+    assert data.formula_category_conflict is not None
+    assert "mixed item-type signals" in data.formula_category_conflict
+
+
+def test_ring_plus_one_prices_as_utility_without_conflict():
+    data = parse_item_text("?gs buy ring of protection rare ring +1")
+
+    assert data.item_type_found == "ring"
+    assert data.formula_category == "utility"
+    assert data.formula_category_conflict is None
 
 
 def test_parses_real_aoe_charged_command():

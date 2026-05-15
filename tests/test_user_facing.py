@@ -19,7 +19,9 @@ def test_loose_wand_of_fireballs_prices_successfully():
 
     assert "**Item:** Wand of Fireballs" in output
     assert "Rarity: Rare" in output
-    assert "Category: Complex" in output
+    assert "Formula Category: Complex Multi-Ability Magic Item" in output
+    assert 'Category Source: explicit formula category "complex"' in output
+    assert "Item Type Found: Complex" not in output
     assert "Impact: 8d6 AoE ×4 × 7 charges" in output
     assert "8d6 average = 28; AoE ×4; charges ×7; 28 × 4 × 7 = 784" in output
     assert "**Final Price**\n**157,000 gp**" in output
@@ -74,7 +76,8 @@ This wand has 7 charges. Roll on the effects table."""
     assert "**Final Price**" not in output
     assert "I found **Wand of Wonder**, but I cannot price it yet." in output
     assert "Rarity: Rare" in output
-    assert 'Item Type: Complex (inferred from "wand")' in output
+    assert "Item Type Found: Wand" in output
+    assert "Formula Category: Complex Multi-Ability Magic Item" in output
     assert "Charges: 7" in output
     assert "randomized/table-driven effects need a utility strength" in output
     assert "?gs buy Wand of Wonder, rare wand, minor utility, 7 charges" in output
@@ -94,7 +97,8 @@ This staff can be wielded as a magic quarterstaff that grants a +2 bonus. It has
     assert "**Final Price**" not in output
     assert "I found **Staff of Power**, but I cannot price it yet." in output
     assert "Rarity: Very Rare" in output
-    assert 'Item Type: Complex (inferred from "staff")' in output
+    assert "Item Type Found: Staff" in output
+    assert "Formula Category: Complex Multi-Ability Magic Item" in output
     assert "Charges: 20" in output
     assert "Found: +2 bonus" in output
     assert "charged items may have additional priced effects" in output
@@ -102,9 +106,11 @@ This staff can be wielded as a magic quarterstaff that grants a +2 bonus. It has
 
 
 def test_potion_of_healing_prices_successfully_without_commas():
-    output = render_gs("?gs buy potion of healing common consumable 2d4+2 healing")
+    output = render_gs("?gs buy potion of healing common potion 2d4+2 healing")
 
     assert "**Item:** Potion of Healing" in output
+    assert "Item Type Found: Potion" in output
+    assert "Formula Category: Consumable" in output
     assert "Impact: 2d4+2 healing" in output
     assert "2d4+2 average = 7 impact" in output
     assert "**Final Price**\n**70 gp**" in output
@@ -249,8 +255,41 @@ def test_flattened_avrae_paste_drops_generic_speaker_text():
     )
 
     assert "I found **Wand of Wonder**, but I cannot price it yet." in output
-    assert 'Item Type: Complex (inferred from "wand")' in output
+    assert "Item Type Found: Wand" in output
+    assert "Formula Category: Complex Multi-Ability Magic Item" in output
     assert "Charges: 7" in output
+
+
+def test_successful_shield_output_shows_item_type_and_formula_category():
+    output = render_gs("?gs buy +1 shield uncommon shield")
+
+    assert "**Item:** +1 Shield" in output
+    assert "Item Type Found: Shield" in output
+    assert "Formula Category: Weapon / Armor Upgrade" in output
+    assert "**Final Price**\n**1,200 gp**" in output
+
+
+def test_output_never_labels_formula_categories_as_item_types():
+    outputs = [
+        render_gs("?gs buy wand of fireballs rare complex 8d6 aoe 7 charges"),
+        render_gs("?gs buy potion of healing common potion 2d4+2 healing"),
+        render_gs("?gs buy cloak of protection uncommon cloak +1"),
+        render_gs("?gs buy +1 shield uncommon shield"),
+    ]
+
+    for output in outputs:
+        assert "Item Type: Complex" not in output
+        assert "Item Type: Utility" not in output
+        assert "Item Type: Consumable" not in output
+        assert "Item Type: Weapon / Armor" not in output
+
+
+def test_soft_utility_charged_damage_conflict_does_not_price():
+    output = render_gs("?gs buy ring of blasting rare ring 8d6 aoe 5 charges")
+
+    assert "**Final Price**" not in output
+    assert "mixed item-type signals" in output
+    assert "charged item" in output
 
 
 def test_mundane_only_item_input_is_rejected():

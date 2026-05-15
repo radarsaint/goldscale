@@ -48,7 +48,7 @@ very rare
 Goldscale accepts item type words such as:
 
 ```text
-wand, staff, rod, potion, scroll, ammunition
+wand, staff, potion, scroll, ammunition
 weapon, armor, shield, sword, bow, dagger, axe, mace, spear
 ring, cloak, boots, amulet, belt, bracers, gloves, gauntlets, helm, hat, goggles, bag, jug, robe, wondrous item
 charged item, multi-use item, multi-ability item

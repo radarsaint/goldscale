@@ -31,8 +31,8 @@ This note intentionally does not copy full item descriptions or create runtime i
 
 ## Safe Parser Principles
 
-- Extract only explicit pricing inputs: rarity, category/type, fixed charge count, bonus, dice tied to damage/healing, AoE shape language, utility tier, official price override, sell percentage.
+- Extract only explicit pricing inputs: rarity, item type, fixed charge count, bonus, dice tied to damage/healing, AoE shape language, utility strength, and sell percentage.
 - Ignore dice attached to recharge, random outcome, destruction, save DC, range, or object-count language.
-- Treat randomized/table-driven items as needing explicit user impact.
+- Treat randomized/table-driven items as needing explicit user utility strength.
 - Treat spell names as text only. If the pasted description lacks dice, ask for dice manually.
 - Do not map item names to mechanics, prices, damage, healing, utility tiers, or official item behavior.

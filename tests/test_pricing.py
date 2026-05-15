@@ -1,7 +1,7 @@
 import pytest
 
 from goldscale.parser import ItemData, parse_item_text
-from goldscale.pricing import average_dice, calculate_price, clean_shop_value
+from goldscale.pricing import average_dice, calculate_price, clean_shop_value, missing_fields
 
 
 def test_average_dice_math():
@@ -22,6 +22,25 @@ def test_bonus_pricing():
     assert result.impact == 24
     assert result.gpi == 50
     assert result.final_price == 1200
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "?gs buy plus 1 longsword uncommon weapon",
+        "?gs buy plus one longsword uncommon weapon",
+        "?gs buy plus-one longsword uncommon weapon",
+        "?gs buy longsword plus one uncommon weapon",
+        "?gs buy + 1 longsword uncommon weapon",
+    ],
+)
+def test_natural_language_plus_one_longsword_prices_like_symbolic_plus_one(command):
+    symbolic = calculate_price(parse_item_text("?gs buy +1 longsword uncommon weapon"))
+    natural = calculate_price(parse_item_text(command))
+
+    assert natural.impact == symbolic.impact
+    assert natural.gpi == symbolic.gpi
+    assert natural.final_price == symbolic.final_price
 
 
 def test_damage_pricing():
@@ -52,14 +71,15 @@ def test_utility_tiers_only():
         calculate_price(invalid)
 
 
-def test_official_price_override_only_when_explicitly_supplied():
-    # 1234 gp is an arbitrary sentinel proving official price overrides are not rounded; it is not item data.
-    explicit = calculate_price(parse_item_text("?gs buy named item, official price 1234 gp"))
-    bare = parse_item_text("?gs buy named item, 1234 gp")
+def test_supplied_price_override_is_rejected():
+    data = parse_item_text("?gs buy named item, official price 1234 gp")
 
-    assert explicit.list_price == 1234
-    assert explicit.final_price == 1234
-    assert bare.official_price is None
+    with pytest.raises(ValueError, match="missing fields"):
+        calculate_price(data)
+
+    assert missing_fields(data) == [
+        "Goldscale supplies prices from the magic item formula. It does not use supplied price overrides."
+    ]
 
 
 def test_quantity_preserves_unit_price_and_adds_transaction_total():
@@ -89,10 +109,6 @@ def test_quantity_preserves_unit_price_and_adds_transaction_total():
         (
             "?gs buy wand of fireballs rare complex 8d6 aoe 7 charges",
             "?gs buy wand of fireballs rare complex 8d6 aoe 7 charges qty 2",
-        ),
-        (
-            "?gs buy named item, official price 1234 gp",
-            "?gs buy named item, official price 1234 gp qty 6",
         ),
         (
             "?gs sell +1 sword uncommon weapon at 75%",

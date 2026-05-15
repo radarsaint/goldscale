@@ -1,5 +1,5 @@
 from goldscale.formatting import format_missing, format_result
-from goldscale.parser import parse_item_text
+from goldscale.parser import MUNDANE_ONLY_MESSAGE, SUPPLIED_PRICE_OVERRIDE_MESSAGE, parse_item_text
 from goldscale.pricing import calculate_price
 
 
@@ -74,12 +74,12 @@ This wand has 7 charges. Roll on the effects table."""
     assert "**Final Price**" not in output
     assert "I found **Wand of Wonder**, but I cannot price it yet." in output
     assert "Rarity: Rare" in output
-    assert 'Category: Complex (inferred from "wand")' in output
+    assert 'Item Type: Complex (inferred from "wand")' in output
     assert "Charges: 7" in output
-    assert "randomized/table-driven effects need an explicit impact" in output
-    assert "?gs buy Wand of Wonder, rare complex, minor utility, 7 charges" in output
-    assert "?gs buy Wand of Wonder, rare complex, reusable utility, 7 charges" in output
-    assert "?gs buy Wand of Wonder, rare complex, broad utility, 7 charges" in output
+    assert "randomized/table-driven effects need a utility strength" in output
+    assert "?gs buy Wand of Wonder, rare wand, minor utility, 7 charges" in output
+    assert "?gs buy Wand of Wonder, rare wand, reusable utility, 7 charges" in output
+    assert "?gs buy Wand of Wonder, rare wand, broad utility, 7 charges" in output
     assert "8d6" not in output
 
 
@@ -94,11 +94,11 @@ This staff can be wielded as a magic quarterstaff that grants a +2 bonus. It has
     assert "**Final Price**" not in output
     assert "I found **Staff of Power**, but I cannot price it yet." in output
     assert "Rarity: Very Rare" in output
-    assert 'Category: Complex (inferred from "staff")' in output
+    assert 'Item Type: Complex (inferred from "staff")' in output
     assert "Charges: 20" in output
     assert "Found: +2 bonus" in output
-    assert "charged complex items may have additional priced effects" in output
-    assert "I need an explicit impact basis." in output
+    assert "charged items may have additional priced effects" in output
+    assert "I need what the magic item changes." in output
 
 
 def test_potion_of_healing_prices_successfully_without_commas():
@@ -162,7 +162,7 @@ def test_quantity_on_wand_of_wonder_requires_explicit_impact():
     assert "**Item:**" not in output
     assert "I found **Wand of Wonder**" in output
     assert "Quantity: 4" in output
-    assert "Impact:" in output
+    assert "What It Changes:" in output
 
 
 def test_quantity_on_wand_of_wonder_with_explicit_impact_adds_transaction_total():
@@ -176,13 +176,10 @@ def test_quantity_on_wand_of_wonder_with_explicit_impact_adds_transaction_total(
     assert "**Transaction Total**\n**44,000 gp**" in output
 
 
-def test_quantity_with_official_price_adds_exact_transaction_total():
+def test_supplied_price_override_input_is_rejected():
     output = render_gs("?gs buy qty 3 named item official price 1234 gp")
 
-    assert "**Item:** Named Item" in output
-    assert "**Final Price**\n**1,234 gp**" in output
-    assert "**Quantity**\n3" in output
-    assert "**Transaction Total**\n**3,702 gp**" in output
+    assert output == SUPPLIED_PRICE_OVERRIDE_MESSAGE
 
 
 def test_missing_rarity_asks_only_for_rarity_and_preserves_known_inputs():
@@ -191,9 +188,43 @@ def test_missing_rarity_asks_only_for_rarity_and_preserves_known_inputs():
     assert "**Final Price**" not in output
     assert "I need:" in output
     assert "Rarity: common, uncommon, rare, or very rare" in output
-    assert "Category:" not in output.split("**Missing**", 1)[1].split("**Read so far**", 1)[0]
-    assert "Impact:" not in output.split("**Missing**", 1)[1].split("**Read so far**", 1)[0]
-    assert "?gs buy +1 Sword, rare weapon / armor, +1" in output
+    assert "Item type:" not in output.split("**Missing**", 1)[1].split("**Read so far**", 1)[0]
+    assert "What the magic item changes:" not in output.split("**Missing**", 1)[1].split("**Read so far**", 1)[0]
+    assert "?gs buy +1 Sword, uncommon weapon, +1" in output
+
+
+def test_missing_item_type_asks_only_for_item_type_and_preserves_known_inputs():
+    output = render_gs("?gs buy magic implement uncommon +1")
+    missing = output.split("**Missing**", 1)[1].split("**Read so far**", 1)[0]
+
+    assert "**Final Price**" not in output
+    assert "Item type: wand, staff, potion, scroll, weapon, armor, shield, ring, cloak, wondrous item, or charged item" in missing
+    assert "Rarity:" not in missing
+    assert "What the magic item changes:" not in missing
+    assert "?gs buy Magic Implement, uncommon weapon, +1" in output
+
+
+def test_missing_impact_asks_only_for_impact_and_gives_utility_retries():
+    output = render_gs("?gs buy wand of wonder rare complex 7 charges")
+    missing = output.split("**Missing**", 1)[1].split("**Read so far**", 1)[0]
+
+    assert "**Final Price**" not in output
+    assert "What the magic item changes:" in missing or "Utility strength:" in missing
+    assert "Rarity:" not in missing
+    assert "Item type:" not in missing
+    assert "?gs buy Wand of Wonder, rare wand, minor utility, 7 charges" in output
+    assert "?gs buy Wand of Wonder, rare wand, reusable utility, 7 charges" in output
+    assert "?gs buy Wand of Wonder, rare wand, broad utility, 7 charges" in output
+
+
+def test_missing_rarity_and_category_preserves_impact():
+    output = render_gs("?gs buy mystery thing 8d6")
+    missing = output.split("**Missing**", 1)[1].split("**Read so far**", 1)[0]
+
+    assert "**Final Price**" not in output
+    assert "Rarity: common, uncommon, rare, or very rare" in missing
+    assert "Item type: wand, staff, potion, scroll, weapon, armor, shield, ring, cloak, wondrous item, or charged item" in missing
+    assert "What the magic item changes:" not in missing
 
 
 def test_unsupported_rarity_does_not_suggest_price():
@@ -206,14 +237,10 @@ def test_unsupported_rarity_does_not_suggest_price():
     assert "made-up price" not in output.lower()
 
 
-def test_official_price_override_wins_even_with_unsupported_rarity():
+def test_supplied_price_override_rejects_even_with_unsupported_rarity():
     output = render_gs("?gs buy legendary crown, official price 50000 gp")
 
-    assert "**Item:** Legendary Crown" in output
-    assert "Official price override used." in output
-    assert "Official price override ignores rarity/category formula limits." in output
-    assert "**Final Price**\n**50,000 gp**" in output
-    assert "outside this formula" not in output
+    assert output == SUPPLIED_PRICE_OVERRIDE_MESSAGE
 
 
 def test_flattened_avrae_paste_drops_generic_speaker_text():
@@ -222,16 +249,66 @@ def test_flattened_avrae_paste_drops_generic_speaker_text():
     )
 
     assert "I found **Wand of Wonder**, but I cannot price it yet." in output
-    assert 'Category: Complex (inferred from "wand")' in output
+    assert 'Item Type: Complex (inferred from "wand")' in output
     assert "Charges: 7" in output
 
 
-def test_help_mentions_manual_spell_dice_requirement():
+def test_mundane_only_item_input_is_rejected():
+    for command in [
+        "?gs buy longsword",
+        "?gs buy rope",
+        "?gs buy backpack",
+        "?gs buy plate armor",
+        "?gs buy qty 3 torches",
+    ]:
+        output = render_gs(command)
+
+        assert output == MUNDANE_ONLY_MESSAGE
+        assert "**Final Price**" not in output
+
+
+def test_plus_four_longsword_does_not_price_and_asks_for_valid_magical_effect():
+    output = render_gs("?gs buy plus four longsword uncommon weapon")
+
+    assert "**Final Price**" not in output
+    assert "What the magic item changes: +1/+2/+3" in output
+
+
+def test_help_teaches_item_description_language():
     from goldscale.formatting import help_text
 
     output = help_text()
 
-    assert output.startswith("**Goldscale Help**\n\n```text\n?gs buy +1 sword uncommon weapon")
+    assert output.startswith("**Goldscale Help**\n\n```text\n?gs buy wand of fireballs rare wand 8d6 aoe 7 charges")
+    assert "?gs buy potion of healing common potion 2d4+2 healing" in output
+    assert "?gs buy cloak of protection uncommon cloak +1" in output
+    assert "?gs buy ring of protection rare ring +1" in output
+    assert "?gs buy +1 shield uncommon shield" in output
+    assert "?gs buy scroll of fireball uncommon scroll 8d6 aoe" in output
+    assert "?gs buy wand of wonder rare wand broad 7 charges" in output
+    assert "?gs sell qty 2 +1 sword uncommon weapon" in output
     assert "If a pasted item description names a spell but does not include damage/healing dice, add the dice manually." in output
-    assert "Goldscale will not invent utility tiers, official prices, or hidden item mechanics." in output
+    assert "Goldscale will not invent utility strength, supplied prices, or hidden item mechanics." in output
     assert "Custom sell rates need a percent sign, e.g. `at 75%`." in output
+
+
+def test_help_does_not_teach_formula_categories_as_primary_examples():
+    from goldscale.formatting import help_text
+
+    examples = help_text().split("```text", 1)[1].split("```", 1)[0]
+
+    assert "rare complex" not in examples
+    assert "common consumable" not in examples
+    assert "uncommon utility" not in examples
+    assert "weapon / armor" not in examples
+
+
+def test_formula_still_uses_formula_language():
+    from goldscale.formatting import formula_text
+
+    output = formula_text()
+
+    assert "Weapon / Armor" in output
+    assert "Consumable" in output
+    assert "Utility" in output
+    assert "Complex" in output

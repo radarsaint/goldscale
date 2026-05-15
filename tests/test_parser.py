@@ -32,6 +32,27 @@ def test_infers_category_from_item_type_only():
     assert data.category_source == 'inferred from "wand"'
 
 
+@pytest.mark.parametrize(
+    ("word", "category"),
+    [
+        ("wand", "complex"),
+        ("staff", "complex"),
+        ("charged item", "complex"),
+        ("potion", "consumable"),
+        ("scroll", "consumable"),
+        ("cloak", "utility"),
+        ("ring", "utility"),
+        ("wondrous item", "utility"),
+        ("shield", "weapon / armor"),
+        ("sword", "weapon / armor"),
+    ],
+)
+def test_item_description_words_map_to_formula_categories(word, category):
+    data = parse_item_text(f"?gs buy test item rare {word} 8d6")
+
+    assert data.category == category
+
+
 def test_parses_real_aoe_charged_command():
     data = parse_item_text("?gs buy wand of fireballs, rare complex, 8d6 aoe, 7 charges")
 
@@ -75,12 +96,27 @@ def test_quantity_does_not_confuse_bonus_charges_or_sell_percent():
     bonus = parse_item_text("?gs buy +1 sword uncommon weapon")
     charged = parse_item_text("?gs buy wand of fireballs, rare complex, 8d6 aoe, 7 charges")
     sell = parse_item_text("?gs sell +1 sword uncommon weapon at 75%")
-    official = parse_item_text("?gs buy named item, official price 1200 gp")
 
     assert bonus.quantity is None
     assert charged.quantity is None
     assert sell.quantity is None
-    assert official.quantity is None
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "?gs buy named item official price 1200 gp",
+        "?gs buy named item listed price 1200 gp",
+        "?gs buy named item list price 1200 gp",
+        "?gs buy named item manual price 1200 gp",
+        "?gs buy named item override 1200 gp",
+        "?gs buy named item dm override 1200 gp",
+    ],
+)
+def test_supplied_price_override_input_is_rejected(command):
+    data = parse_item_text(command)
+
+    assert data.rejection_error == "Goldscale supplies prices from the magic item formula. It does not use supplied price overrides."
 
 
 def test_quantity_keyword_does_not_override_charges():
@@ -96,7 +132,7 @@ def test_quantity_keyword_does_not_override_charges():
         ("?gs buy alchemy jug uncommon utility reusable utility qty 2", 2),
         ("?gs buy boots of the winding path uncommon utility reusable utility quantity 3", 3),
         ("?gs buy wand of wonder rare complex broad 7 charges count 4", 4),
-        ("?gs buy immovable rod uncommon utility reusable utility qty 5", 5),
+        ("?gs buy useful rod uncommon charged item reusable utility qty 5", 5),
         ("?gs buy bag of holding uncommon utility broad utility quantity 6", 6),
         ("?gs buy deck of illusions uncommon complex broad utility qty 7", 7),
     ],
@@ -114,7 +150,7 @@ def test_weird_item_name_alone_still_does_not_supply_impact():
     assert data.item_name == "Alchemy Jug"
     assert data.quantity == 2
     assert data.utility is None
-    assert "Impact:" in missing_fields(data)[0]
+    assert "What the magic item changes:" in missing_fields(data)[0]
 
 
 def test_recharge_dice_are_not_damage():
@@ -124,7 +160,27 @@ def test_recharge_dice_are_not_damage():
 
     assert data.damage is None
     assert data.healing is None
+    assert data.bonus is None
     assert data.charges is None
+
+
+@pytest.mark.parametrize(
+    ("command", "item_name", "bonus"),
+    [
+        ("?gs buy plus 1 longsword uncommon weapon", "Longsword", 1),
+        ("?gs buy plus one longsword uncommon weapon", "Longsword", 1),
+        ("?gs buy plus-one longsword uncommon weapon", "Longsword", 1),
+        ("?gs buy longsword plus one uncommon weapon", "Longsword", 1),
+        ("?gs buy + 1 longsword uncommon weapon", "+1 Longsword", 1),
+        ("?gs buy plus two longsword rare weapon", "Longsword", 2),
+        ("?gs buy plus three longsword rare weapon", "Longsword", 3),
+    ],
+)
+def test_natural_language_bonus_phrases_are_parsed_and_cleaned_from_names(command, item_name, bonus):
+    data = parse_item_text(command)
+
+    assert data.item_name == item_name
+    assert data.bonus == bonus
 
 
 def test_srd_style_last_charge_d20_is_not_damage():
@@ -143,7 +199,7 @@ def test_randomized_table_driven_items_require_explicit_impact():
     assert data.randomized is True
     assert data.category == "complex"
     assert missing_fields(data) == [
-        "Impact: choose a utility tier: minor utility, reusable utility, or broad utility"
+        "Utility strength: choose minor, reusable, or broad"
     ]
 
 

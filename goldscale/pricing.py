@@ -87,12 +87,15 @@ def has_impact(data: ItemData) -> bool:
         data.damage is not None,
         data.healing is not None,
         data.utility is not None,
-        data.official_price is not None,
     ])
 
 
 def missing_fields(data: ItemData) -> list[str]:
     missing = []
+
+    if data.rejection_error:
+        missing.append(data.rejection_error)
+        return missing
 
     if data.sell_rate_error:
         if data.sell_rate_error == "Sell rate must be between 1% and 100%.":
@@ -100,23 +103,23 @@ def missing_fields(data: ItemData) -> list[str]:
         else:
             missing.append("Sell rate: include the percent sign")
 
-    if data.unsupported_rarity and data.official_price is None:
+    if data.unsupported_rarity:
         missing.append(f"Rarity: {data.unsupported_rarity} is outside this formula. Use common, uncommon, rare, or very rare.")
         return missing
 
-    if not data.rarity and data.official_price is None:
+    if not data.rarity:
         missing.append("Rarity: common, uncommon, rare, or very rare")
 
-    if not data.category and data.official_price is None:
-        missing.append("Category: consumable, weapon, armor, utility, or complex")
+    if not data.category:
+        missing.append("Item type: wand, staff, potion, scroll, weapon, armor, shield, ring, cloak, wondrous item, or charged item")
 
     if not has_impact(data):
         if data.complex_partial_bonus:
-            missing.append("Impact: found a +bonus on a charged complex item, but that is probably not the whole item. Choose a pricing input: minor utility, reusable utility, broad utility, dice like 8d6, or provide an official price")
+            missing.append("What the magic item changes: found a +bonus on a charged item, but that is probably not the whole item. Choose dice like 8d6 or a utility strength: minor, reusable, or broad")
         elif data.randomized:
-            missing.append("Impact: choose a utility tier: minor utility, reusable utility, or broad utility")
+            missing.append("Utility strength: choose minor, reusable, or broad")
         else:
-            missing.append("Impact: +1/+2/+3, dice like 8d6, healing like 2d4+2 healing, or utility tier: minor/reusable/broad")
+            missing.append("What the magic item changes: +1/+2/+3, dice like 8d6, healing like 2d4+2 healing, or utility strength: minor/reusable/broad")
 
     return missing
 
@@ -130,32 +133,6 @@ def calculate_price(data: ItemData) -> PricingResult:
 
     item_name = data.item_name or "Unnamed Item"
     quantity = data.quantity if data.quantity and data.quantity > 1 else None
-
-    if data.official_price is not None:
-        list_price = data.official_price
-        final_price = list_price
-
-        if data.mode == "sell":
-            final_price = clean_shop_value(list_price * (data.sell_rate or 0.50))
-
-        transaction_total = final_price * quantity if quantity else None
-
-        return PricingResult(
-            item_name=item_name,
-            impact=0,
-            impact_math="Official price override used.",
-            rarity=(data.rarity or "Official").title(),
-            category=(data.category or "Official").title(),
-            gpi=0,
-            list_price=list_price,
-            final_price=final_price,
-            mode=data.mode,
-            sell_rate=data.sell_rate,
-            quantity=quantity,
-            transaction_total=transaction_total,
-            read_as=read_as_block(data),
-            warnings=data.warnings,
-        )
 
     rarity = data.rarity
     category = data.category

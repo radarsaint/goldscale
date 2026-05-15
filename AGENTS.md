@@ -18,4 +18,4 @@ Implementation guidance:
 - Keep parser and pricing behavior deterministic.
 - Add focused parser and pricing tests for behavior changes.
 - Do not print, inspect, or expose Discord tokens.
-- Prefer explicit user-supplied pricing inputs over assumptions from item names or flavor text.
+- Use explicit item-description inputs only. Do not use supplied price overrides.

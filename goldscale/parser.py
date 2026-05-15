@@ -15,6 +15,7 @@ UTILITY_IMPACT = {
 TYPE_TO_CATEGORY = {
     "potion": "consumable",
     "scroll": "consumable",
+    "ammunition": "consumable",
 
     "weapon": "weapon / armor",
     "armor": "weapon / armor",
@@ -34,6 +35,9 @@ TYPE_TO_CATEGORY = {
     "wand": "complex",
     "staff": "complex",
     "rod": "complex",
+    "charged item": "complex",
+    "multi-use item": "complex",
+    "multi-ability item": "complex",
 
     "cloak": "utility",
     "ring": "utility",
@@ -46,7 +50,45 @@ TYPE_TO_CATEGORY = {
     "belt": "utility",
     "bracers": "utility",
     "brooch": "utility",
+    "goggles": "utility",
+    "bag": "utility",
+    "jug": "utility",
+    "robe": "utility",
+    "wondrous item": "utility",
 }
+
+
+MUNDANE_ONLY_WORDS = {
+    "longsword",
+    "shortsword",
+    "greatsword",
+    "sword",
+    "axe",
+    "bow",
+    "crossbow",
+    "dagger",
+    "mace",
+    "spear",
+    "weapon",
+    "armor",
+    "armour",
+    "shield",
+    "rope",
+    "backpack",
+    "torch",
+    "torches",
+}
+
+
+SUPPLIED_PRICE_OVERRIDE_MESSAGE = (
+    "Goldscale supplies prices from the magic item formula. It does not use supplied price overrides."
+)
+
+
+MUNDANE_ONLY_MESSAGE = (
+    "Goldscale prices magic items, not mundane gear.\n"
+    "Add rarity and what the magic item changes."
+)
 
 
 CATEGORY_ALIASES = {
@@ -89,6 +131,7 @@ class ItemData:
     charges: Optional[int] = None
     quantity: Optional[int] = None
     official_price: Optional[int] = None
+    rejection_error: Optional[str] = None
     sell_rate: Optional[float] = None
     sell_rate_error: Optional[str] = None
     sell_rate_retry: Optional[str] = None
@@ -201,13 +244,45 @@ def find_explicit_category(text: str) -> tuple[Optional[str], Optional[str]]:
 
 
 def find_category_from_type(text: str, item_name: Optional[str]) -> tuple[Optional[str], Optional[str]]:
-    search_space = f"{item_name or ''} {text}".lower()
+    matches = find_type_aliases(text, item_name)
 
-    for type_word, category in TYPE_TO_CATEGORY.items():
-        if re.search(rf"\b{re.escape(type_word)}\b", search_space):
-            return category, f'inferred from "{type_word}"'
+    if matches:
+        type_word, category = matches[0]
+        return category, f'inferred from "{type_word}"'
 
     return None, None
+
+
+def find_type_aliases(text: str, item_name: Optional[str]) -> list[tuple[str, str]]:
+    search_space = f"{item_name or ''} {text}".lower()
+    matches = []
+
+    for type_word, category in sorted(TYPE_TO_CATEGORY.items(), key=lambda item: len(item[0]), reverse=True):
+        if re.search(rf"\b{re.escape(type_word)}\b", search_space):
+            matches.append((type_word, category))
+
+    return matches
+
+
+def find_alias_category_conflict(text: str, item_name: Optional[str], explicit_category: Optional[str]) -> Optional[str]:
+    matches = find_type_aliases(text, item_name)
+    categories = {category for _, category in matches}
+
+    if explicit_category:
+        categories.add(explicit_category)
+
+    if len(categories) <= 1:
+        return None
+
+    found = ", ".join(f"{word} -> {category}" for word, category in matches)
+    if explicit_category:
+        found = f"{found}, explicit -> {explicit_category}" if found else f"explicit -> {explicit_category}"
+
+    return (
+        "Goldscale found conflicting item type signals. "
+        "Use one item type, such as wand, potion, weapon, armor, cloak, or charged item."
+        f" Found: {found}."
+    )
 
 
 def find_charges(text: str) -> Optional[int]:
@@ -238,17 +313,26 @@ def find_quantity(text: str) -> Optional[int]:
     return None
 
 
-def find_official_price(text: str) -> Optional[int]:
+def has_supplied_price_override(text: str) -> bool:
     lower = text.lower()
-    match = re.search(
-        r"\b(?:official price|official|listed price|list price)\s*[:=]?\s*([\d,]+)\s*(?:gp)?\b",
-        lower,
+
+    return bool(
+        re.search(
+            r"\b(?:official(?:\s+price)?|listed price|list price|manual price|dm override|override)\b",
+            lower,
+        )
     )
 
-    if match:
-        return int(match.group(1).replace(",", ""))
 
-    return None
+def is_mundane_only_request(body: str, data: ItemData) -> bool:
+    if data.rarity or data.unsupported_rarity or data.bonus is not None or data.damage or data.healing or data.utility:
+        return False
+
+    if data.charges:
+        return False
+
+    lower = body.lower()
+    return any(re.search(rf"\b{re.escape(word)}\b", lower) for word in MUNDANE_ONLY_WORDS)
 
 
 def find_sell_rate(text: str) -> tuple[Optional[float], Optional[str]]:
@@ -301,7 +385,7 @@ def item_name_before_pricing_signals(text: str) -> Optional[str]:
         r"\d+d\d+(?:\s*[+-]\s*\d+)?|aoe|area of effect|minor|reusable|broad|"
         r"\d+\s+charges?|charges?\s*[:=]?\s*\d+|"
         r"(?:quantity|qty|count)\s*[:=]?\s*\d+|"
-        r"official price|official|at\s+\d{1,3}%?"
+        r"official price|official|listed price|list price|manual price|dm override|override|at\s+\d{1,3}%?"
         r")\b",
         flags=re.IGNORECASE,
     )
@@ -333,17 +417,40 @@ def remove_dice_expressions(text: str) -> str:
     return re.sub(r"\b\d+d\d+(?:\s*[+-]\s*\d+)?\b", " ", text, flags=re.IGNORECASE)
 
 
+BONUS_WORDS = {
+    "1": 1,
+    "one": 1,
+    "2": 2,
+    "two": 2,
+    "3": 3,
+    "three": 3,
+}
+
+
+def bonus_match_is_charge_context(text: str, start: int, end: int) -> bool:
+    window = text[max(0, start - 60): min(len(text), end + 80)]
+    return bool(re.search(r"\b(charges?|recharge|regains?|expended|uses?)\b", window, flags=re.IGNORECASE))
+
+
 def find_bonus(text: str) -> Optional[int]:
     # Remove dice expressions first so "1d6 + 1" does not become a +1 item.
     no_dice = remove_dice_expressions(text.lower())
 
-    explicit = re.search(r"\bbonus\s*[:=]?\s*\+?([123])\b", no_dice)
+    explicit = re.search(r"\bbonus\s*[:=]?\s*(?:\+\s*)?([123])\b", no_dice)
     if explicit:
         return int(explicit.group(1))
 
-    match = re.search(r"(?<![0-9d])\+([123])\b", no_dice)
-    if match:
-        return int(match.group(1))
+    explicit_after = re.search(r"(?<![0-9d])\+\s*([123])\s+bonus\b", no_dice)
+    if explicit_after:
+        return int(explicit_after.group(1))
+
+    for match in re.finditer(r"(?<![0-9d])\+\s*([123])\b", no_dice):
+        if not bonus_match_is_charge_context(no_dice, match.start(), match.end()):
+            return int(match.group(1))
+
+    for match in re.finditer(r"\bplus[-\s]+(1|2|3|one|two|three)\b", no_dice):
+        if not bonus_match_is_charge_context(no_dice, match.start(), match.end()):
+            return BONUS_WORDS[match.group(1)]
 
     return None
 
@@ -518,7 +625,7 @@ def extract_item_name(text: str) -> Optional[str]:
     # Wand, rare
     for index, line in enumerate(lines[:-1]):
         next_line = lines[index + 1]
-        if re.match(r"^(wand|weapon|armor|armour|potion|scroll|staff|rod|ring|cloak|shield)[,\s]+(?:common|uncommon|rare|very\s+rare)\b", next_line, flags=re.IGNORECASE):
+        if re.match(r"^(wand|weapon|armor|armour|potion|scroll|staff|rod|ring|cloak|shield|boots|amulet|belt|bracers|gloves|gauntlets|helm|hat|goggles|bag|jug|robe|wondrous item|charged item|multi-use item|multi-ability item)[,\s]+(?:common|uncommon|rare|very\s+rare)\b", next_line, flags=re.IGNORECASE):
             return title_item_name(strip_known_speaker_prefix(line))
 
     # If first cleaned line looks title-like, use it.
@@ -538,7 +645,7 @@ def extract_item_name(text: str) -> Optional[str]:
     # Flattened Avrae pattern:
     # DM radar Wand of Wonder Wand, rare Attunement...
     flat = normalize_spaces(cleaned)
-    type_words = "|".join(re.escape(word) for word in ["wand", "weapon", "armor", "armour", "potion", "scroll", "staff", "rod", "ring", "cloak", "shield"])
+    type_words = "|".join(re.escape(word) for word in sorted(TYPE_TO_CATEGORY, key=len, reverse=True))
     match = re.search(
         rf"^(.+?)\s+({type_words})\s*,\s*(common|uncommon|rare|very\s+rare)\b",
         flat,
@@ -565,7 +672,7 @@ def remove_known_signals_for_name(text: str) -> str:
     )[0]
 
     # Remove labels and pricing signals.
-    cleaned = re.sub(r"\b(item|rarity|category|damage|healing|utility|charges|charge|official price|official)\s*[:=]", " ", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\b(item|rarity|category|damage|healing|utility|charges|charge|official price|official|listed price|list price|manual price|dm override|override)\s*[:=]", " ", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\bvery\s+rare\b|\bveryrare\b|\bvr\b|\buncommon\b|\bcommon\b|\brare\b|\blegendary\b|\bartifact\b", " ", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\b(consumable|utility|complex|weapon\s*/\s*armor|weapon armor|weapon|armor|armour)\b", " ", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\b\d+d\d+(?:\s*[+-]\s*\d+)?\b", " ", cleaned, flags=re.IGNORECASE)
@@ -589,11 +696,25 @@ def trim_repeated_category_from_bonus_name(name: str) -> str:
     return re.sub(r"\s+(weapon|armor|armour)$", "", name, flags=re.IGNORECASE)
 
 
+def clean_bonus_phrase_from_name(name: str, bonus: Optional[int]) -> str:
+    if bonus is None:
+        return name
+
+    cleaned = normalize_spaces(name)
+    cleaned = re.sub(rf"^\+\s*{bonus}\b", f"+{bonus}", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(rf"\bplus[-\s]+(?:{bonus}|{['', 'one', 'two', 'three'][bonus]})\b", " ", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(rf"\s+\+\s*{bonus}\b", " ", cleaned, flags=re.IGNORECASE)
+    cleaned = normalize_spaces(cleaned)
+    return cleaned or name
+
+
 def parse_item_text(raw: str) -> ItemData:
     text = remove_old_prefix_accidents(raw)
     mode, body = split_mode(text)
 
     data = ItemData(mode=mode)
+    if has_supplied_price_override(body):
+        data.rejection_error = SUPPLIED_PRICE_OVERRIDE_MESSAGE
 
     data.item_name = extract_item_name(text)
     data.rarity, data.unsupported_rarity = find_rarity(body)
@@ -604,7 +725,6 @@ def parse_item_text(raw: str) -> ItemData:
 
     data.charges = find_charges(body)
     data.quantity = find_quantity(body)
-    data.official_price = find_official_price(body)
     data.bonus = find_bonus(body)
     data.damage, data.healing = find_damage_or_healing(body)
     data.aoe = find_aoe(body)
@@ -632,8 +752,19 @@ def parse_item_text(raw: str) -> ItemData:
         data.category = inferred_category
         data.category_source = source
 
+    if not data.rejection_error:
+        conflict = find_alias_category_conflict(text_before_description(body), data.item_name, data.category)
+        if conflict:
+            data.rejection_error = conflict
+
+    if not data.rejection_error and is_mundane_only_request(body, data):
+        data.rejection_error = MUNDANE_ONLY_MESSAGE
+
     if data.item_name and data.category_source == "explicit category":
         data.item_name = title_item_name(trim_repeated_category_from_bonus_name(data.item_name))
+
+    if data.item_name:
+        data.item_name = title_item_name(clean_bonus_phrase_from_name(data.item_name, data.bonus))
 
     if (
         data.category == "complex"

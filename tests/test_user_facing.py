@@ -110,6 +110,81 @@ def test_potion_of_healing_prices_successfully_without_commas():
     assert "**Final Price**\n**70 gp**" in output
 
 
+def test_quantity_adds_buy_transaction_total():
+    output = render_gs("?gs buy qty 3 potion of healing common consumable 2d4+2 healing")
+
+    assert "**Item:** Potion of Healing" in output
+    assert "Quantity: 3" in output
+    assert "**Final Price**\n**70 gp**" in output
+    assert "**Quantity**\n3" in output
+    assert "**Transaction Total**\n**210 gp**" in output
+
+
+def test_quantity_with_sell_adds_transaction_total():
+    output = render_gs("?gs sell +1 sword uncommon weapon qty 2")
+
+    assert "**Item:** +1 Sword" in output
+    assert "Quantity: 2" in output
+    assert "**List Price**\n1,200 gp" in output
+    assert "**Sell Rate**\n50%" in output
+    assert "**Unit Sell Price**\n**600 gp**" in output
+    assert "**Quantity**\n2" in output
+    assert "**Total Sell Price**\n**1,200 gp**" in output
+    assert "44,000 gp" not in output
+
+
+def test_prefix_quantity_with_sell_adds_correct_transaction_total():
+    output = render_gs("?gs sell qty 2 +1 sword uncommon weapon")
+
+    assert "**Item:** +1 Sword" in output
+    assert "**List Price**\n1,200 gp" in output
+    assert "**Sell Rate**\n50%" in output
+    assert "**Unit Sell Price**\n**600 gp**" in output
+    assert "**Quantity**\n2" in output
+    assert "**Total Sell Price**\n**1,200 gp**" in output
+    assert "44,000 gp" not in output
+
+
+def test_quantity_on_weird_utility_item_adds_transaction_total():
+    output = render_gs("?gs buy alchemy jug uncommon utility reusable utility qty 2")
+
+    assert "**Item:** Alchemy Jug" in output
+    assert "Quantity: 2" in output
+    assert "Reusable utility = 6 impact" in output
+    assert "**Final Price**\n**350 gp**" in output
+    assert "**Transaction Total**\n**700 gp**" in output
+
+
+def test_quantity_on_wand_of_wonder_requires_explicit_impact():
+    output = render_gs("?gs buy wand of wonder rare complex qty 4")
+
+    assert "**Final Price**" not in output
+    assert "**Item:**" not in output
+    assert "I found **Wand of Wonder**" in output
+    assert "Quantity: 4" in output
+    assert "Impact:" in output
+
+
+def test_quantity_on_wand_of_wonder_with_explicit_impact_adds_transaction_total():
+    output = render_gs("?gs buy wand of wonder rare complex broad 7 charges count 4")
+
+    assert "**Item:** Wand of Wonder" in output
+    assert "Charges: 7" in output
+    assert "Quantity: 4" in output
+    assert "Broad utility = 8 impact; charges" in output
+    assert "**Final Price**\n**11,000 gp**" in output
+    assert "**Transaction Total**\n**44,000 gp**" in output
+
+
+def test_quantity_with_official_price_adds_exact_transaction_total():
+    output = render_gs("?gs buy qty 3 named item official price 1234 gp")
+
+    assert "**Item:** Named Item" in output
+    assert "**Final Price**\n**1,234 gp**" in output
+    assert "**Quantity**\n3" in output
+    assert "**Transaction Total**\n**3,702 gp**" in output
+
+
 def test_missing_rarity_asks_only_for_rarity_and_preserves_known_inputs():
     output = render_gs("?gs buy +1 sword weapon")
 

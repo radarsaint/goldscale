@@ -41,6 +41,80 @@ def test_parses_real_aoe_charged_command():
     assert data.damage == "8d6"
     assert data.aoe is True
     assert data.charges == 7
+    assert data.quantity is None
+
+
+def test_parses_explicit_quantity_without_using_bare_numbers():
+    explicit = parse_item_text("?gs buy potion of healing common consumable 2d4+2 healing qty 3")
+    prefix = parse_item_text("?gs buy qty 3 potion of healing common consumable 2d4+2 healing")
+    bare = parse_item_text("?gs buy potion of healing common consumable 2d4+2 healing 3")
+
+    assert explicit.quantity == 3
+    assert prefix.quantity == 3
+    assert prefix.item_name == "Potion of Healing"
+    assert bare.quantity is None
+
+
+@pytest.mark.parametrize(
+    ("command", "quantity"),
+    [
+        ("?gs buy potion of healing common consumable 2d4+2 healing quantity 1", 1),
+        ("?gs buy spell scroll common consumable 1d6 damage qty 2", 2),
+        ("?gs buy +1 sword uncommon weapon count 4", 4),
+        ("?gs buy useful cloak uncommon utility reusable utility quantity 12", 12),
+        ("?gs buy wand of sparks rare complex 8d6 qty 25", 25),
+    ],
+)
+def test_parses_quantity_keywords_across_item_inputs(command, quantity):
+    data = parse_item_text(command)
+
+    assert data.quantity == quantity
+
+
+def test_quantity_does_not_confuse_bonus_charges_or_sell_percent():
+    bonus = parse_item_text("?gs buy +1 sword uncommon weapon")
+    charged = parse_item_text("?gs buy wand of fireballs, rare complex, 8d6 aoe, 7 charges")
+    sell = parse_item_text("?gs sell +1 sword uncommon weapon at 75%")
+    official = parse_item_text("?gs buy named item, official price 1200 gp")
+
+    assert bonus.quantity is None
+    assert charged.quantity is None
+    assert sell.quantity is None
+    assert official.quantity is None
+
+
+def test_quantity_keyword_does_not_override_charges():
+    data = parse_item_text("?gs buy wand of sparks, rare complex, 8d6, 7 charges, qty 3")
+
+    assert data.charges == 7
+    assert data.quantity == 3
+
+
+@pytest.mark.parametrize(
+    ("command", "quantity"),
+    [
+        ("?gs buy alchemy jug uncommon utility reusable utility qty 2", 2),
+        ("?gs buy boots of the winding path uncommon utility reusable utility quantity 3", 3),
+        ("?gs buy wand of wonder rare complex broad 7 charges count 4", 4),
+        ("?gs buy immovable rod uncommon utility reusable utility qty 5", 5),
+        ("?gs buy bag of holding uncommon utility broad utility quantity 6", 6),
+        ("?gs buy deck of illusions uncommon complex broad utility qty 7", 7),
+    ],
+)
+def test_quantity_on_weird_items_uses_explicit_inputs_only(command, quantity):
+    data = parse_item_text(command)
+
+    assert data.quantity == quantity
+    assert data.utility in {"reusable", "broad"}
+
+
+def test_weird_item_name_alone_still_does_not_supply_impact():
+    data = parse_item_text("?gs buy alchemy jug uncommon utility qty 2")
+
+    assert data.item_name == "Alchemy Jug"
+    assert data.quantity == 2
+    assert data.utility is None
+    assert "Impact:" in missing_fields(data)[0]
 
 
 def test_recharge_dice_are_not_damage():

@@ -60,3 +60,80 @@ def test_official_price_override_only_when_explicitly_supplied():
     assert explicit.list_price == 1234
     assert explicit.final_price == 1234
     assert bare.official_price is None
+
+
+def test_quantity_preserves_unit_price_and_adds_transaction_total():
+    single = calculate_price(parse_item_text("?gs buy potion of healing common consumable 2d4+2 healing"))
+    quantity = calculate_price(parse_item_text("?gs buy potion of healing common consumable 2d4+2 healing qty 3"))
+
+    assert quantity.final_price == single.final_price
+    assert quantity.quantity == 3
+    assert quantity.transaction_total == single.final_price * 3
+
+
+@pytest.mark.parametrize(
+    ("single_command", "quantity_command"),
+    [
+        (
+            "?gs buy +1 sword uncommon weapon",
+            "?gs buy +1 sword uncommon weapon qty 4",
+        ),
+        (
+            "?gs buy wand of sparks rare complex 8d6",
+            "?gs buy wand of sparks rare complex 8d6 count 8",
+        ),
+        (
+            "?gs buy cloak of utility uncommon utility reusable utility",
+            "?gs buy cloak of utility uncommon utility reusable utility quantity 12",
+        ),
+        (
+            "?gs buy wand of fireballs rare complex 8d6 aoe 7 charges",
+            "?gs buy wand of fireballs rare complex 8d6 aoe 7 charges qty 2",
+        ),
+        (
+            "?gs buy named item, official price 1234 gp",
+            "?gs buy named item, official price 1234 gp qty 6",
+        ),
+        (
+            "?gs sell +1 sword uncommon weapon at 75%",
+            "?gs sell +1 sword uncommon weapon qty 5 at 75%",
+        ),
+    ],
+)
+def test_quantity_keeps_unit_price_and_adds_total_across_pricing_inputs(single_command, quantity_command):
+    single = calculate_price(parse_item_text(single_command))
+    quantity = calculate_price(parse_item_text(quantity_command))
+
+    assert quantity.final_price == single.final_price
+    assert quantity.list_price == single.list_price
+    assert quantity.transaction_total == quantity.final_price * quantity.quantity
+
+
+@pytest.mark.parametrize(
+    ("single_command", "quantity_command"),
+    [
+        (
+            "?gs buy alchemy jug uncommon utility reusable utility",
+            "?gs buy alchemy jug uncommon utility reusable utility qty 2",
+        ),
+        (
+            "?gs buy boots of the winding path uncommon utility reusable utility",
+            "?gs buy boots of the winding path uncommon utility reusable utility quantity 3",
+        ),
+        (
+            "?gs buy wand of wonder rare complex broad 7 charges",
+            "?gs buy wand of wonder rare complex broad 7 charges count 4",
+        ),
+        (
+            "?gs buy deck of illusions uncommon complex broad utility",
+            "?gs buy deck of illusions uncommon complex broad utility qty 7",
+        ),
+    ],
+)
+def test_weird_item_quantities_keep_unit_price_and_add_total(single_command, quantity_command):
+    single = calculate_price(parse_item_text(single_command))
+    quantity = calculate_price(parse_item_text(quantity_command))
+
+    assert quantity.final_price == single.final_price
+    assert quantity.list_price == single.list_price
+    assert quantity.transaction_total == quantity.final_price * quantity.quantity

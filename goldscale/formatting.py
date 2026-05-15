@@ -96,6 +96,9 @@ def read_as_block(data: ItemData) -> str:
     if data.charges:
         pieces.append(f"Charges: {data.charges}")
 
+    if data.quantity:
+        pieces.append(f"Quantity: {data.quantity}")
+
     if data.official_price is not None:
         pieces.append(f"Official Price: {data.official_price:,} gp")
     elif data.complex_partial_bonus:
@@ -187,6 +190,7 @@ def format_result(result: PricingResult) -> str:
         official_override_note = "\nOfficial price override ignores rarity/category formula limits."
 
     if result.mode == "sell":
+        sell_price_label = "Unit Sell Price" if result.quantity else "Sell Price"
         return f"""
 **Item:** {result.item_name}
 
@@ -213,8 +217,9 @@ def format_result(result: PricingResult) -> str:
 **Sell Rate**
 {int((result.sell_rate or 0.50) * 100)}%
 
-**Sell Price**
-**{result.final_price:,} gp**{warnings}
+**{sell_price_label}**
+**{result.final_price:,} gp**
+{format_transaction_total(result, "Total Sell Price")}{warnings}
 """.strip()
 
     return f"""
@@ -238,8 +243,22 @@ def format_result(result: PricingResult) -> str:
 {result.gpi} gp
 
 **Final Price**
-**{result.final_price:,} gp**{warnings}
+**{result.final_price:,} gp**
+{format_transaction_total(result, "Transaction Total")}{warnings}
 """.strip()
+
+
+def format_transaction_total(result: PricingResult, label: str) -> str:
+    if not result.quantity or result.transaction_total is None:
+        return ""
+
+    return f"""
+
+**Quantity**
+{result.quantity}
+
+**{label}**
+**{result.transaction_total:,} gp**"""
 
 
 def help_text() -> str:

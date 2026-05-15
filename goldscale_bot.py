@@ -22,6 +22,7 @@ from goldscale.parser import (
     find_bonus,
     find_category_from_type,
     find_charges,
+    find_quantity,
     find_damage_or_healing,
     find_dice_expressions,
     find_explicit_category,

@@ -45,6 +45,8 @@ class PricingResult:
     final_price: int
     mode: str
     sell_rate: Optional[float]
+    quantity: Optional[int]
+    transaction_total: Optional[int]
     read_as: str
     warnings: list[str]
 
@@ -127,6 +129,7 @@ def calculate_price(data: ItemData) -> PricingResult:
         raise ValueError("missing fields")
 
     item_name = data.item_name or "Unnamed Item"
+    quantity = data.quantity if data.quantity and data.quantity > 1 else None
 
     if data.official_price is not None:
         list_price = data.official_price
@@ -134,6 +137,8 @@ def calculate_price(data: ItemData) -> PricingResult:
 
         if data.mode == "sell":
             final_price = clean_shop_value(list_price * (data.sell_rate or 0.50))
+
+        transaction_total = final_price * quantity if quantity else None
 
         return PricingResult(
             item_name=item_name,
@@ -146,6 +151,8 @@ def calculate_price(data: ItemData) -> PricingResult:
             final_price=final_price,
             mode=data.mode,
             sell_rate=data.sell_rate,
+            quantity=quantity,
+            transaction_total=transaction_total,
             read_as=read_as_block(data),
             warnings=data.warnings,
         )
@@ -200,6 +207,8 @@ def calculate_price(data: ItemData) -> PricingResult:
     if data.mode == "sell":
         final_price = clean_shop_value(list_price * (data.sell_rate or 0.50))
 
+    transaction_total = final_price * quantity if quantity else None
+
     return PricingResult(
         item_name=item_name,
         impact=impact,
@@ -211,6 +220,8 @@ def calculate_price(data: ItemData) -> PricingResult:
         final_price=final_price,
         mode=data.mode,
         sell_rate=data.sell_rate,
+        quantity=quantity,
+        transaction_total=transaction_total,
         read_as=read_as_block(data),
         warnings=data.warnings,
     )

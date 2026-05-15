@@ -87,6 +87,7 @@ class ItemData:
     utility: Optional[str] = None
     aoe: bool = False
     charges: Optional[int] = None
+    quantity: Optional[int] = None
     official_price: Optional[int] = None
     sell_rate: Optional[float] = None
     sell_rate_error: Optional[str] = None
@@ -227,6 +228,16 @@ def find_charges(text: str) -> Optional[int]:
     return None
 
 
+def find_quantity(text: str) -> Optional[int]:
+    lower = text.lower()
+    match = re.search(r"\b(?:quantity|qty|count)\s*[:=]?\s*(\d+)\b", lower)
+
+    if match:
+        return int(match.group(1))
+
+    return None
+
+
 def find_official_price(text: str) -> Optional[int]:
     lower = text.lower()
     match = re.search(
@@ -288,7 +299,9 @@ def item_name_before_pricing_signals(text: str) -> Optional[str]:
         r"common|uncommon|rare|very\s+rare|veryrare|vr|legendary|artifact|"
         r"consumable|utility|complex|weapon\s*/\s*armor|weapon armor|armor|armour|"
         r"\d+d\d+(?:\s*[+-]\s*\d+)?|aoe|area of effect|minor|reusable|broad|"
-        r"\d+\s+charges?|charges?\s*[:=]?\s*\d+|official price|official|at\s+\d{1,3}%?"
+        r"\d+\s+charges?|charges?\s*[:=]?\s*\d+|"
+        r"(?:quantity|qty|count)\s*[:=]?\s*\d+|"
+        r"official price|official|at\s+\d{1,3}%?"
         r")\b",
         flags=re.IGNORECASE,
     )
@@ -299,6 +312,10 @@ def item_name_before_pricing_signals(text: str) -> Optional[str]:
 
     candidate = cleaned[:match.start()].strip(" ,;:")
     return candidate or None
+
+
+def strip_leading_quantity_signal(text: str) -> str:
+    return re.sub(r"^\s*(?:quantity|qty|count)\s*[:=]?\s*\d+\s+", "", text, flags=re.IGNORECASE)
 
 
 def trim_flattened_speaker_text(candidate: str, type_word: str) -> str:
@@ -506,7 +523,7 @@ def extract_item_name(text: str) -> Optional[str]:
 
     # If first cleaned line looks title-like, use it.
     if lines:
-        first = strip_known_speaker_prefix(lines[0])
+        first = strip_leading_quantity_signal(strip_known_speaker_prefix(lines[0]))
         if not re.search(r"\b(description|attunement|requires attunement|this item|this wand|this weapon)\b", first, flags=re.IGNORECASE):
             signal_candidate = item_name_before_pricing_signals(first)
             if signal_candidate:
@@ -555,6 +572,7 @@ def remove_known_signals_for_name(text: str) -> str:
     cleaned = re.sub(r"(?<![0-9d])\+[123]\b", " ", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\b\d+\s*(?:charges?|uses?)\b", " ", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\b(?:has\s+)?\d+\s+charges?\b", " ", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\b(?:quantity|qty|count)\s*[:=]?\s*\d+\b", " ", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\b(aoe|area of effect|minor|reusable|broad)\b", " ", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\b(?:at|for|custom)?\s*\d{1,3}\s*%", " ", cleaned, flags=re.IGNORECASE)
 
@@ -585,6 +603,7 @@ def parse_item_text(raw: str) -> ItemData:
     data.category_source = explicit_source
 
     data.charges = find_charges(body)
+    data.quantity = find_quantity(body)
     data.official_price = find_official_price(body)
     data.bonus = find_bonus(body)
     data.damage, data.healing = find_damage_or_healing(body)

@@ -75,7 +75,7 @@ def test_bare_sell_number_is_warning_not_sell_rate():
     data = parse_item_text("?gs sell +1 sword uncommon weapon at 75")
 
     assert data.mode == "sell"
-    assert data.sell_rate == pytest.approx(0.50)
+    assert data.sell_rate is None
     assert data.sell_rate_error == "I need the sell rate with a percent sign."
     assert data.sell_rate_retry_command == "?gs sell +1 sword uncommon weapon at 75%"
     assert data.warnings == ['I found "75" but not "75%." For sell rates, include the percent sign.']

@@ -47,7 +47,19 @@ def test_sell_bare_number_blocks_instead_of_pricing():
     assert "**Sell Price**" not in output
     assert "I need the sell rate with a percent sign." in output
     assert 'I found "75" but not "75%."' in output
+    assert "Sell Rate: Missing or invalid" in output
     assert "?gs sell +1 sword uncommon weapon at 75%" in output
+
+
+def test_invalid_sell_percent_blocks_with_range_error():
+    zero = render_gs("?gs sell +1 sword uncommon weapon at 0%")
+    high = render_gs("?gs sell +1 sword uncommon weapon at 125%")
+
+    for output in (zero, high):
+        assert "**Sell Price**" not in output
+        assert "Sell rate must be between 1% and 100%." in output
+        assert "percent sign" not in output
+        assert "Sell Rate: Missing or invalid" in output
 
 
 def test_wand_of_wonder_avrae_paste_asks_for_explicit_utility_impact():
@@ -113,4 +125,34 @@ def test_unsupported_rarity_does_not_suggest_price():
 
     assert "**Final Price**" not in output
     assert "legendary is outside this formula" in output
+    assert "If the DM intentionally reclassifies it" in output
+    assert "?gs buy" not in output.split("**Use one**", 1)[-1]
     assert "made-up price" not in output.lower()
+
+
+def test_official_price_override_wins_even_with_unsupported_rarity():
+    output = render_gs("?gs buy legendary crown, official price 50000 gp")
+
+    assert "**Item:** Legendary Crown" in output
+    assert "Official price override used." in output
+    assert "**Final Price**\n**50,000 gp**" in output
+    assert "outside this formula" not in output
+
+
+def test_flattened_avrae_paste_drops_generic_speaker_text():
+    output = render_gs(
+        "?gs buy Table User Wand of Wonder Wand, rare Description This wand has 7 charges. Roll on the effects table."
+    )
+
+    assert "I found **Wand of Wonder**, but I cannot price it yet." in output
+    assert 'Category: Complex (inferred from "wand")' in output
+    assert "Charges: 7" in output
+
+
+def test_help_mentions_manual_spell_dice_requirement():
+    from goldscale.formatting import help_text
+
+    assert (
+        "If a pasted item description names a spell but does not include damage/healing dice, add the dice manually."
+        in help_text()
+    )

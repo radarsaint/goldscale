@@ -58,6 +58,9 @@ def build_retry_options(data: ItemData) -> str:
             return data.sell_rate_retry_command
         return build_retry_example(data)
 
+    if data.unsupported_rarity:
+        return "If the DM intentionally reclassifies it, choose common, uncommon, rare, or very rare and run the command again."
+
     if not has_impact(data):
         options = [
             f"?gs {mode} {name}, {rarity} {category}, minor utility{suffix}",
@@ -127,7 +130,10 @@ def read_as_block(data: ItemData) -> str:
         pieces.append("Note: randomized effects detected")
 
     if data.mode == "sell":
-        pieces.append(f"Sell Rate: {int((data.sell_rate or 0.50) * 100)}%")
+        if data.sell_rate_error:
+            pieces.append("Sell Rate: Missing or invalid")
+        else:
+            pieces.append(f"Sell Rate: {int((data.sell_rate or 0.50) * 100)}%")
 
     return "\n".join(pieces)
 
@@ -139,7 +145,11 @@ def format_missing(data: ItemData) -> str:
     need_text = "I need:"
     extra_note = ""
     if data.sell_rate_error:
-        extra_note = "\n\nI need the sell rate with a percent sign. " + " ".join(data.warnings)
+        extra_note = "\n\n" + data.sell_rate_error
+        if data.warnings and data.warnings[0] != data.sell_rate_error:
+            extra_note += " " + " ".join(data.warnings)
+    elif data.unsupported_rarity:
+        extra_note = "\n\nIf the DM intentionally reclassifies it, choose common, uncommon, rare, or very rare and run the command again."
     elif data.complex_partial_bonus and not has_impact(data):
         need_text = "I need an explicit impact basis."
         extra_note = "\n\nGoldscale found a +bonus, but charged complex items may have additional priced effects. It will not treat the +bonus alone as the whole item unless you explicitly price it that way."
@@ -242,6 +252,8 @@ Examples:
 ```
 
 You can paste an Avrae item description after `?gs buy`. Goldscale will scan it for item name, rarity, type, dice, charges, and clear AoE language.
+
+If a pasted item description names a spell but does not include damage/healing dice, add the dice manually.
 
 Goldscale needs:
 ```text

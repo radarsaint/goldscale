@@ -74,11 +74,6 @@ AVRAE_LABELS = {
 }
 
 
-KNOWN_SPEAKER_PREFIXES = {
-    "dm radar",
-}
-
-
 @dataclass
 class ItemData:
     item_name: Optional[str] = None
@@ -160,14 +155,7 @@ def split_mode(text: str) -> tuple[str, str]:
 
 
 def strip_known_speaker_prefix(text: str) -> str:
-    cleaned = normalize_spaces(text)
-    lower = cleaned.lower()
-
-    for prefix in KNOWN_SPEAKER_PREFIXES:
-        if lower.startswith(prefix + " "):
-            return cleaned[len(prefix):].strip()
-
-    return cleaned
+    return normalize_spaces(text)
 
 
 def find_rarity(text: str) -> tuple[Optional[str], Optional[str]]:
@@ -272,6 +260,13 @@ def find_sell_rate(text: str) -> tuple[Optional[float], Optional[str]]:
     return None, None
 
 
+def sell_rate_error_message(warning: str) -> str:
+    if warning == "Sell rate must be between 1% and 100%.":
+        return warning
+
+    return "I need the sell rate with a percent sign."
+
+
 def build_sell_rate_retry_command(body: str, number: str) -> str:
     retry_body = re.sub(
         rf"\b(at|for|custom)\s+{re.escape(number)}\b",
@@ -304,6 +299,17 @@ def item_name_before_pricing_signals(text: str) -> Optional[str]:
 
     candidate = cleaned[:match.start()].strip(" ,;:")
     return candidate or None
+
+
+def trim_flattened_speaker_text(candidate: str, type_word: str) -> str:
+    words = candidate.split()
+    lowered_type = type_word.lower()
+
+    for index in range(len(words) - 1, -1, -1):
+        if words[index].lower() == lowered_type:
+            return " ".join(words[index:])
+
+    return candidate
 
 
 def remove_dice_expressions(text: str) -> str:
@@ -474,9 +480,6 @@ def clean_lines_after_mode(text: str) -> list[str]:
         if not line:
             continue
 
-        if line.lower() in KNOWN_SPEAKER_PREFIXES:
-            continue
-
         if line.lower() in AVRAE_LABELS:
             continue
 
@@ -524,7 +527,7 @@ def extract_item_name(text: str) -> Optional[str]:
     )
 
     if match:
-        candidate = strip_known_speaker_prefix(match.group(1))
+        candidate = trim_flattened_speaker_text(strip_known_speaker_prefix(match.group(1)), match.group(2))
         return title_item_name(candidate)
 
     return None
@@ -552,9 +555,6 @@ def remove_known_signals_for_name(text: str) -> str:
     cleaned = re.sub(r"\b(?:has\s+)?\d+\s+charges?\b", " ", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\b(aoe|area of effect|minor|reusable|broad)\b", " ", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\b(?:at|for|custom)?\s*\d{1,3}\s*%", " ", cleaned, flags=re.IGNORECASE)
-
-    for speaker in KNOWN_SPEAKER_PREFIXES:
-        cleaned = re.sub(rf"^\s*{re.escape(speaker)}\b", " ", cleaned, flags=re.IGNORECASE)
 
     cleaned = re.sub(r"[,;:|]+", " ", cleaned)
     cleaned = normalize_spaces(cleaned)
@@ -593,13 +593,13 @@ def parse_item_text(raw: str) -> ItemData:
     if data.mode == "sell":
         data.sell_rate, warning = find_sell_rate(body)
         if warning:
-            data.sell_rate_error = "I need the sell rate with a percent sign."
+            data.sell_rate_error = sell_rate_error_message(warning)
             data.warnings.append(warning)
             match = re.search(r'"(\d{1,3})"', warning)
             if match:
                 data.sell_rate_retry = match.group(1)
                 data.sell_rate_retry_command = build_sell_rate_retry_command(body, data.sell_rate_retry)
-        if data.sell_rate is None:
+        if data.sell_rate is None and not data.sell_rate_error:
             data.sell_rate = 0.50
 
     if not data.item_name:

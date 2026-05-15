@@ -13,7 +13,6 @@ from goldscale.parser import (
     ItemData,
     CATEGORY_ALIASES,
     AVRAE_LABELS,
-    KNOWN_SPEAKER_PREFIXES,
     TYPE_TO_CATEGORY,
     UTILITY_IMPACT,
     clean_lines_after_mode,

@@ -93,9 +93,12 @@ def missing_fields(data: ItemData) -> list[str]:
     missing = []
 
     if data.sell_rate_error:
-        missing.append("Sell rate: include the percent sign")
+        if data.sell_rate_error == "Sell rate must be between 1% and 100%.":
+            missing.append("Sell rate: must be between 1% and 100%")
+        else:
+            missing.append("Sell rate: include the percent sign")
 
-    if data.unsupported_rarity:
+    if data.unsupported_rarity and data.official_price is None:
         missing.append(f"Rarity: {data.unsupported_rarity} is outside this formula. Use common, uncommon, rare, or very rare.")
         return missing
 

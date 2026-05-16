@@ -191,6 +191,9 @@ def read_as_block(data: ItemData, player_language: bool = False) -> str:
     elif data.bonus is not None:
         pieces.append(f"{'What It Changes' if player_language else 'Impact'}: +{data.bonus} bonus")
     elif data.damage is not None:
+        if not player_language:
+            pieces.append(f"Damage: {data.damage}")
+            pieces.append(f"AoE: {'Yes' if data.aoe else 'No'}")
         impact = f"{'What It Changes' if player_language else 'Impact'}: {data.damage}"
         if data.aoe:
             impact += " AoE ×4"
@@ -198,6 +201,9 @@ def read_as_block(data: ItemData, player_language: bool = False) -> str:
             impact += f" × {data.charges} charges"
         pieces.append(impact)
     elif data.healing is not None:
+        if not player_language:
+            pieces.append(f"Healing: {data.healing}")
+            pieces.append(f"AoE: {'Yes' if data.aoe else 'No'}")
         impact = f"{'What It Changes' if player_language else 'Impact'}: {data.healing} healing"
         if data.aoe:
             impact += " AoE ×4"

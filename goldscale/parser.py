@@ -200,6 +200,7 @@ class ItemData:
     randomized: bool = False
     has_description_text: bool = False
     spell_effect_without_dice: bool = False
+    spell_reference: Optional[str] = None
     complex_partial_bonus: bool = False
     warnings: list[str] = field(default_factory=list)
 
@@ -559,8 +560,6 @@ def dice_is_recharge_or_table_roll(lower: str, start: int, end: int, allow_charg
     after_dice = lower[end: min(len(lower), end + 80)]
 
     reject_terms = [
-        "regains",
-        "regain",
         "recharge",
         "charges daily",
         "daily at dawn",
@@ -570,15 +569,16 @@ def dice_is_recharge_or_table_roll(lower: str, start: int, end: int, allow_charg
         "on a 1",
         "crumbles",
         "destroyed",
+        "maximum",
     ]
 
     if any(term in window for term in reject_terms):
         return True
 
-    if re.match(r"^[\s,]*(beads?|stars?|charges?|uses?)\b", after_dice):
+    if re.match(r"^[\s,]*(beads?|stars?|charges?|uses?|patches?)\b", after_dice):
         return True
 
-    if re.match(r"^[\s,]*(?:for|per)\s+(?:each|every|additional)?\s*(?:bead|charge|use)\b", after_dice):
+    if re.match(r"^[\s,]*(?:for|per)\s+(?:each|every|additional)?\s*(?:bead|charge|use|patch)\b", after_dice):
         return True
 
     # Strongly reject dice whose nearby noun is charges, unless it is clearly damage/healing.
@@ -715,6 +715,30 @@ def find_spell_effect_without_dice(text: str, damage: Optional[str], healing: Op
         return False
 
     return bool(re.search(r"\b(cast|casts|spell|spellcasting|fireball|cure wounds|magic missile)\b", lower))
+
+
+def find_spell_reference(text: str, damage: Optional[str], healing: Optional[str]) -> Optional[str]:
+    if damage or healing:
+        return None
+
+    lower = text.lower()
+    patterns = [
+        r"\bcast\s+([a-z][a-z\s'-]{1,40}?)(?:\.|,|;|\n|$)",
+        r"\bcasts\s+([a-z][a-z\s'-]{1,40}?)(?:\.|,|;|\n|$)",
+        r"\bto\s+cast\s+([a-z][a-z\s'-]{1,40}?)(?:\.|,|;|\n|$)",
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, lower)
+        if match:
+            spell = normalize_spaces(match.group(1))
+            spell = re.sub(r"^(the|a|an)\s+", "", spell)
+            spell = re.sub(r"\s+spell$", "", spell)
+            if spell in {"iron", "shadow"}:
+                continue
+            return spell or None
+
+    return None
 
 
 def clean_lines_after_mode(text: str) -> list[str]:
@@ -855,6 +879,7 @@ def parse_item_text(raw: str) -> ItemData:
     data.randomized = find_randomized_item_markers(body)
     data.has_description_text = has_pasted_description(body)
     data.spell_effect_without_dice = find_spell_effect_without_dice(body, data.damage, data.healing)
+    data.spell_reference = find_spell_reference(body, data.damage, data.healing)
 
     if data.mode == "sell":
         data.sell_rate, warning = find_sell_rate(body)

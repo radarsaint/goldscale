@@ -287,8 +287,10 @@ While the sword is ablaze, it deals an extra 2d6 Fire damage on a hit."""
 
     assert "**Item:** Flame Tongue" in output
     assert "Formula Category: Weapon / Armor Upgrade" in output
+    assert "Damage: 2d6" in output
+    assert "AoE: No" in output
     assert "Impact: 2d6" in output
-    assert "AoE" not in output
+    assert "AoE ×4" not in output
     assert "2d6 average = 7 impact" in output
     assert "**Final Price**\n**850 gp**" in output
 

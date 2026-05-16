@@ -4,7 +4,7 @@ from time import time
 from typing import Optional
 
 from goldscale.formatting import format_missing, format_result, should_request_description
-from goldscale.parser import ItemData, parse_item_text
+from goldscale.parser import ItemData, find_aoe, find_damage_or_healing, parse_item_text, title_item_name
 from goldscale.pricing import calculate_price, has_impact, missing_fields
 
 
@@ -62,6 +62,9 @@ def classify_question(data: ItemData, raw: str) -> Optional[str]:
         return "description"
 
     lower = raw.lower()
+    if data.spell_reference and not has_impact(data):
+        return "spell_description"
+
     if data.has_description_text and "bead" in lower and "fireball" in lower and not (data.damage or data.healing):
         return "beads_damage"
 
@@ -127,7 +130,33 @@ Paste the item text from Avrae or D&D Beyond after:
         return "How useful should this item count in your campaign: minor, reusable, or broad?"
 
     if question_kind == "beads_damage":
-        return "How many beads should I price, and what damage dice should I use?"
+        return f"""
+I found **{name}**, but I need two details before I can price it.
+
+How many beads should I price, and what damage dice should I use?
+""".strip()
+
+    if question_kind == "spell_description":
+        spell = title_item_name(data.spell_reference or "the spell")
+        details = []
+        if data.rarity:
+            item_type = data.item_type_found or "item"
+            details.append(f"{data.rarity.title()} {item_type}")
+        if data.charges:
+            details.append(f"{data.charges} charges")
+        if data.spell_reference:
+            details.append(f"Spell reference: {data.spell_reference}")
+
+        found = "\n".join(details)
+        if found:
+            found = f"\n\nI found:\n{found}"
+
+        return f"""
+I found **{name}**.{found}
+
+I need the spell description before I can price the spell effect.
+Paste the {spell} spell text.
+""".strip()
 
     if question_kind == "dice":
         return "I found a spell effect, but no damage or healing dice.\nAdd the dice manually, or paste a description that includes them."
@@ -216,7 +245,48 @@ def parse_count_answer(answer: str) -> Optional[int]:
     return None
 
 
+ONGOING_SPELL_MARKERS = [
+    "starts its turn",
+    "enters the area",
+    "for the first time on a turn",
+    "duration",
+    "concentration",
+    "each round",
+    "repeats",
+    "at the start of",
+    "at the end of",
+]
+
+
+def has_ongoing_spell_effect(text: str) -> bool:
+    lower = text.lower()
+    return any(marker in lower for marker in ONGOING_SPELL_MARKERS)
+
+
+def apply_spell_description(data: ItemData, answer: str) -> ItemData:
+    damage, healing = find_damage_or_healing(answer)
+    if damage:
+        data.damage = damage
+    if healing:
+        data.healing = healing
+
+    data.aoe = find_aoe(answer)
+
+    if (damage or healing) and has_ongoing_spell_effect(answer):
+        warning = (
+            "Ongoing spell effect detected. Goldscale used one damage instance because "
+            "duration/repeated damage is outside the current formula."
+        )
+        if warning not in data.warnings:
+            data.warnings.append(warning)
+
+    return data
+
+
 def apply_answer(data: ItemData, pending: PendingAppraisal, answer: str) -> ItemData:
+    if pending.question_kind == "spell_description":
+        data = apply_spell_description(data, answer)
+
     rarity = parse_rarity_answer(answer)
     if rarity:
         data.rarity = rarity
@@ -281,6 +351,13 @@ def continue_appraisal(
     except ValueError as error:
         if str(error) != "missing fields":
             raise
+
+    if pending.question_kind == "spell_description" and not has_impact(data):
+        pending_store.set(key, pending.raw, "utility", now=now)
+        return (
+            "I found spell text, but no damage or healing dice.\n"
+            f"{clarification_question(data, 'utility')}"
+        )
 
     next_kind = classify_question(data, pending.raw)
     if next_kind:

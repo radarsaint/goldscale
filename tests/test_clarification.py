@@ -34,7 +34,11 @@ This wand has 7 charges. Roll on the effects table.""",
         now=0,
     )
 
-    assert "How useful should this item count in your campaign: minor, reusable, or broad?" in output
+    assert "How useful should this item count in your campaign?" in output
+    assert "1. Minor, small or situational" in output
+    assert "2. Reusable, useful repeatable effect" in output
+    assert "3. Broad, flexible or broadly useful" in output
+    assert "Reply with 1-3." in output
 
 
 def test_answering_broad_completes_wand_of_wonder_pricing():
@@ -102,7 +106,12 @@ def test_missing_rarity_clarification_completes_pricing():
     pending = PendingAppraisals()
     output = start_appraisal("buy +1 sword weapon", KEY, pending, now=0)
 
-    assert output == "What rarity is this item?"
+    assert "What rarity is this item?" in output
+    assert "1. Common" in output
+    assert "2. Uncommon" in output
+    assert "3. Rare" in output
+    assert "4. Very Rare" in output
+    assert "Reply with 1-4." in output
 
     priced = continue_appraisal("uncommon", KEY, pending, now=10)
 
@@ -110,11 +119,36 @@ def test_missing_rarity_clarification_completes_pricing():
     assert "**Final Price**\n**1,200 gp**" in priced
 
 
+def test_missing_rarity_accepts_number_choice():
+    pending = PendingAppraisals()
+    start_appraisal("buy +1 sword weapon", KEY, pending, now=0)
+
+    priced = continue_appraisal("2", KEY, pending, now=10)
+
+    assert "Rarity: Uncommon" in priced
+    assert "**Final Price**\n**1,200 gp**" in priced
+
+
+def test_missing_rarity_accepts_text_choice():
+    pending = PendingAppraisals()
+    start_appraisal("buy +1 sword weapon", KEY, pending, now=0)
+
+    priced = continue_appraisal("rare", KEY, pending, now=10)
+
+    assert "Rarity: Rare" in priced
+    assert "**Final Price**\n**2,900 gp**" in priced
+
+
 def test_missing_item_type_clarification_completes_pricing():
     pending = PendingAppraisals()
     output = start_appraisal("buy +1 sword uncommon", KEY, pending, now=0)
 
-    assert output.startswith("What kind of item is this:")
+    assert "What kind of magic item is this?" in output
+    assert "1. Weapon or armor" in output
+    assert "2. Potion, scroll, or ammunition" in output
+    assert "3. Wand, staff, or charged item" in output
+    assert "4. Ring, cloak, boots, or wondrous item" in output
+    assert "Reply with 1-4." in output
 
     priced = continue_appraisal("weapon", KEY, pending, now=10)
 
@@ -122,17 +156,103 @@ def test_missing_item_type_clarification_completes_pricing():
     assert "**Final Price**\n**1,200 gp**" in priced
 
 
+def test_missing_item_type_accepts_number_choice():
+    pending = PendingAppraisals()
+    start_appraisal("buy +1 sword uncommon", KEY, pending, now=0)
+
+    priced = continue_appraisal("1", KEY, pending, now=10)
+
+    assert "Formula Category: Weapon / Armor Upgrade" in priced
+    assert "**Final Price**\n**1,200 gp**" in priced
+
+
+def test_missing_item_type_accepts_wand_as_complex():
+    pending = PendingAppraisals()
+    start_appraisal("buy magic implement uncommon 8d6 7 charges", KEY, pending, now=0)
+
+    priced = continue_appraisal("wand", KEY, pending, now=10)
+
+    assert "Item Type Found: Wand" in priced
+    assert "Formula Category: Complex Multi-Ability Magic Item" in priced
+
+
 def test_missing_utility_strength_clarification_completes_pricing():
     pending = PendingAppraisals()
     output = start_appraisal("buy alchemy jug uncommon wondrous item", KEY, pending, now=0)
 
-    assert output == "How useful should this item count in your campaign: minor, reusable, or broad?"
+    assert "How useful should this item count in your campaign?" in output
+    assert "1. Minor, small or situational" in output
+    assert "2. Reusable, useful repeatable effect" in output
+    assert "3. Broad, flexible or broadly useful" in output
+    assert "Reply with 1-3." in output
 
     priced = continue_appraisal("reusable", KEY, pending, now=10)
 
     assert "**Item:** Alchemy Jug" in priced
     assert "Reusable utility = 6 impact" in priced
     assert "**Final Price**\n**350 gp**" in priced
+
+
+def test_missing_utility_strength_accepts_number_choice():
+    pending = PendingAppraisals()
+    start_appraisal("buy alchemy jug uncommon wondrous item", KEY, pending, now=0)
+
+    priced = continue_appraisal("3", KEY, pending, now=10)
+
+    assert "Broad utility = 8 impact" in priced
+    assert "**Final Price**\n**475 gp**" in priced
+
+
+def test_missing_utility_strength_accepts_text_choice():
+    pending = PendingAppraisals()
+    start_appraisal("buy alchemy jug uncommon wondrous item", KEY, pending, now=0)
+
+    priced = continue_appraisal("reusable", KEY, pending, now=10)
+
+    assert "Reusable utility = 6 impact" in priced
+
+
+def test_invalid_closed_choice_says_valid_numbers():
+    pending = PendingAppraisals()
+    start_appraisal("buy +1 sword weapon", KEY, pending, now=0)
+
+    assert continue_appraisal("5", KEY, pending, now=10) == "I need one of the listed choices. Reply with 1-4."
+
+    priced = continue_appraisal("2", KEY, pending, now=20)
+
+    assert "**Final Price**\n**1,200 gp**" in priced
+
+
+def test_category_conflict_accepts_charged_item_choice():
+    pending = PendingAppraisals()
+    output = start_appraisal("?gs buy ring of blasting rare ring 8d6 aoe 5 charges", KEY, pending, now=0)
+
+    assert "I found mixed signals. How should Goldscale price it?" in output
+    assert "1. Utility item, use minor/reusable/broad" in output
+    assert "2. Multi-use charged item, use damage/healing dice and charges" in output
+    assert "Reply with 1 or 2." in output
+
+    priced = continue_appraisal("2", KEY, pending, now=10)
+
+    assert "Item Type Found: Charged Item" in priced
+    assert "Formula Category: Complex Multi-Ability Magic Item" in priced
+    assert "**Final Price**" in priced
+
+
+def test_category_conflict_accepts_utility_choice_then_utility_strength():
+    pending = PendingAppraisals()
+    start_appraisal("?gs buy ring of blasting rare ring 8d6 aoe 5 charges", KEY, pending, now=0)
+
+    utility_prompt = continue_appraisal("1", KEY, pending, now=10)
+
+    assert "How useful should this item count in your campaign?" in utility_prompt
+
+    priced = continue_appraisal("2", KEY, pending, now=20)
+
+    assert "Formula Category: Utility Item" in priced
+    assert "Reusable utility = 6 impact" in priced
+    assert "**Final Price**" in priced
+    assert "I found mixed signals" not in priced
 
 
 def test_cancel_clears_pending_appraisal():
@@ -155,11 +275,30 @@ def test_pending_appraisals_are_keyed_by_user_and_channel():
     assert continue_appraisal("broad", KEY, pending, now=10) is not None
 
 
+def test_numbered_choice_pending_is_keyed_by_user_and_channel():
+    pending = PendingAppraisals()
+    other_user = (1, 10, 101)
+    other_channel = (1, 11, 100)
+
+    start_appraisal("buy +1 sword weapon", KEY, pending, now=0)
+
+    assert continue_appraisal("2", other_user, pending, now=10) is None
+    assert continue_appraisal("2", other_channel, pending, now=10) is None
+    assert continue_appraisal("2", KEY, pending, now=10) is not None
+
+
 def test_pending_appraisals_expire():
     pending = PendingAppraisals()
     start_appraisal("buy wand of wonder", KEY, pending, now=0)
 
     assert continue_appraisal("broad", KEY, pending, now=301) is None
+
+
+def test_numbered_choice_pending_expires():
+    pending = PendingAppraisals()
+    start_appraisal("buy +1 sword weapon", KEY, pending, now=0)
+
+    assert continue_appraisal("2", KEY, pending, now=301) is None
 
 
 def test_item_references_cloudkill_and_asks_for_spell_description():
@@ -273,7 +412,9 @@ This wand has 5 charges. You can expend 1 charge to cast knock.""",
     output = continue_appraisal("Knock\nChoose an object that you can see within range. The object unlocks.", KEY, pending, now=10)
 
     assert "I found spell text, but no damage or healing dice." in output
-    assert "How useful should this item count in your campaign: minor, reusable, or broad?" in output
+    assert "How useful should this item count in your campaign?" in output
+    assert "1. Minor, small or situational" in output
+    assert "Reply with 1-3." in output
 
 
 def test_other_user_or_channel_cannot_complete_pending_spell_appraisal():

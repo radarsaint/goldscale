@@ -55,6 +55,9 @@ def render_pricing_or_missing(data: ItemData) -> str:
 
 
 def classify_question(data: ItemData, raw: str) -> Optional[str]:
+    if data.formula_category_conflict:
+        return "category_conflict"
+
     if data.rejection_error:
         return None
 
@@ -121,13 +124,41 @@ Paste the item text from Avrae or D&D Beyond after:
 """.strip()
 
     if question_kind == "rarity":
-        return "What rarity is this item?"
+        return """
+What rarity is this item?
+1. Common
+2. Uncommon
+3. Rare
+4. Very Rare
+Reply with 1-4.
+""".strip()
 
     if question_kind == "item_type":
-        return "What kind of item is this: weapon, armor, shield, potion, scroll, wand, staff, ring, cloak, wondrous item, or charged item?"
+        return """
+What kind of magic item is this?
+1. Weapon or armor
+2. Potion, scroll, or ammunition
+3. Wand, staff, or charged item
+4. Ring, cloak, boots, or wondrous item
+Reply with 1-4.
+""".strip()
 
     if question_kind == "utility":
-        return "How useful should this item count in your campaign: minor, reusable, or broad?"
+        return """
+How useful should this item count in your campaign?
+1. Minor, small or situational
+2. Reusable, useful repeatable effect
+3. Broad, flexible or broadly useful
+Reply with 1-3.
+""".strip()
+
+    if question_kind == "category_conflict":
+        return """
+I found mixed signals. How should Goldscale price it?
+1. Utility item, use minor/reusable/broad
+2. Multi-use charged item, use damage/healing dice and charges
+Reply with 1 or 2.
+""".strip()
 
     if question_kind == "beads_damage":
         return f"""
@@ -167,6 +198,10 @@ Paste the {spell} spell text.
 def start_appraisal(raw: str, key: PendingKey, pending: PendingAppraisals, now: Optional[float] = None) -> str:
     data = parse_item_text(raw)
 
+    if data.formula_category_conflict:
+        pending.set(key, raw, "category_conflict", now=now)
+        return clarification_question(data, "category_conflict")
+
     if should_confirm_item_type_before_pricing(data, raw):
         pending.set(key, raw, "item_type", now=now)
         return clarification_question(data, "item_type")
@@ -185,8 +220,18 @@ def start_appraisal(raw: str, key: PendingKey, pending: PendingAppraisals, now: 
     return clarification_question(data, question_kind)
 
 
-def parse_rarity_answer(answer: str) -> Optional[str]:
+def parse_rarity_answer(answer: str, allow_numbers: bool = False) -> Optional[str]:
     lower = answer.lower()
+    if allow_numbers:
+        numbered = {
+            "1": "common",
+            "2": "uncommon",
+            "3": "rare",
+            "4": "very rare",
+        }
+        if normalize_choice(answer) in numbered:
+            return numbered[normalize_choice(answer)]
+
     if re.search(r"\bvery\s+rare\b|\bveryrare\b|\bvr\b", lower):
         return "very rare"
     for rarity in ("uncommon", "common", "rare"):
@@ -195,8 +240,19 @@ def parse_rarity_answer(answer: str) -> Optional[str]:
     return None
 
 
-def parse_item_type_answer(answer: str) -> tuple[Optional[str], Optional[str]]:
+def parse_item_type_answer(answer: str, allow_numbers: bool = False) -> tuple[Optional[str], Optional[str]]:
     lower = answer.lower()
+    if allow_numbers:
+        numbered = {
+            "1": ("weapon", "weapon / armor"),
+            "2": ("potion", "consumable"),
+            "3": ("charged item", "complex"),
+            "4": ("wondrous item", "utility"),
+        }
+        choice = normalize_choice(answer)
+        if choice in numbered:
+            return numbered[choice]
+
     mapping = {
         "charged item": "complex",
         "multi-use item": "complex",
@@ -205,10 +261,12 @@ def parse_item_type_answer(answer: str) -> tuple[Optional[str], Optional[str]]:
         "shield": "weapon / armor",
         "potion": "consumable",
         "scroll": "consumable",
+        "ammunition": "consumable",
         "wand": "complex",
         "staff": "complex",
         "ring": "utility",
         "cloak": "utility",
+        "boots": "utility",
         "wondrous item": "utility",
     }
 
@@ -218,12 +276,55 @@ def parse_item_type_answer(answer: str) -> tuple[Optional[str], Optional[str]]:
     return None, None
 
 
-def parse_utility_answer(answer: str) -> Optional[str]:
+def parse_utility_answer(answer: str, allow_numbers: bool = False) -> Optional[str]:
     lower = answer.lower()
+    if allow_numbers:
+        numbered = {
+            "1": "minor",
+            "2": "reusable",
+            "3": "broad",
+        }
+        if normalize_choice(answer) in numbered:
+            return numbered[normalize_choice(answer)]
+
     for tier in ("minor", "reusable", "broad"):
         if re.search(rf"\b{tier}\b", lower):
             return tier
     return None
+
+
+def normalize_choice(answer: str) -> str:
+    return answer.strip().strip(".").lower()
+
+
+def valid_closed_choice(pending: PendingAppraisal, answer: str) -> bool:
+    if pending.question_kind == "rarity":
+        return parse_rarity_answer(answer, allow_numbers=True) is not None
+    if pending.question_kind == "item_type":
+        return parse_item_type_answer(answer, allow_numbers=True) != (None, None)
+    if pending.question_kind == "utility":
+        return parse_utility_answer(answer, allow_numbers=True) is not None
+    if pending.question_kind == "category_conflict":
+        return normalize_choice(answer) in {"1", "2", "utility", "utility item", "charged item", "multi-use charged item", "multi-use item"}
+    return True
+
+
+def invalid_choice_message(question_kind: str) -> str:
+    if question_kind in {"rarity", "item_type"}:
+        return "I need one of the listed choices. Reply with 1-4."
+    if question_kind == "utility":
+        return "I need one of the listed choices. Reply with 1-3."
+    if question_kind == "category_conflict":
+        return "I need one of the listed choices. Reply with 1 or 2."
+    return "I need one of the listed choices."
+
+
+def clarified_utility_raw(data: ItemData) -> str:
+    mode = data.mode or "buy"
+    name = data.item_name or "item"
+    rarity = data.rarity or ""
+    item_type = data.item_type_found or "wondrous item"
+    return " ".join(part for part in (mode, name, rarity, item_type) if part)
 
 
 def parse_dice_answer(answer: str) -> tuple[Optional[str], Optional[str]]:
@@ -287,11 +388,35 @@ def apply_answer(data: ItemData, pending: PendingAppraisal, answer: str) -> Item
     if pending.question_kind == "spell_description":
         data = apply_spell_description(data, answer)
 
-    rarity = parse_rarity_answer(answer)
+    if pending.question_kind == "category_conflict":
+        choice = normalize_choice(answer)
+        data.rejection_error = None
+        data.formula_category_conflict = None
+        if choice in {"2", "charged item", "multi-use charged item", "multi-use item"}:
+            data.item_type_found = "charged item"
+            data.item_type_source = 'from clarification "charged item"'
+            data.formula_category = "complex"
+            data.formula_category_source = 'from clarification "charged item"'
+            data.formula_category_confidence = "clarified"
+            data.category = data.formula_category
+            data.category_source = data.formula_category_source
+            return data
+
+        data.formula_category = "utility"
+        data.formula_category_source = 'from clarification "utility item"'
+        data.formula_category_confidence = "clarified"
+        data.damage = None
+        data.healing = None
+        data.charges = None
+        data.aoe = False
+        data.category = data.formula_category
+        data.category_source = data.formula_category_source
+
+    rarity = parse_rarity_answer(answer, allow_numbers=pending.question_kind == "rarity")
     if rarity:
         data.rarity = rarity
 
-    item_type, formula_category = parse_item_type_answer(answer)
+    item_type, formula_category = parse_item_type_answer(answer, allow_numbers=pending.question_kind == "item_type")
     if item_type:
         data.item_type_found = item_type
         data.item_type_source = f'from clarification "{item_type}"'
@@ -299,7 +424,7 @@ def apply_answer(data: ItemData, pending: PendingAppraisal, answer: str) -> Item
         data.formula_category_source = f'from clarification "{item_type}"'
         data.formula_category_confidence = "clarified"
 
-    utility = parse_utility_answer(answer)
+    utility = parse_utility_answer(answer, allow_numbers=pending.question_kind == "utility")
     if utility:
         data.utility = utility
 
@@ -342,6 +467,9 @@ def continue_appraisal(
         pending_store.clear(key)
         return start_appraisal(answer, key, pending_store, now=now)
 
+    if not valid_closed_choice(pending, answer):
+        return invalid_choice_message(pending.question_kind)
+
     data = apply_answer(parse_item_text(pending.raw), pending, answer)
 
     try:
@@ -361,7 +489,8 @@ def continue_appraisal(
 
     next_kind = classify_question(data, pending.raw)
     if next_kind:
-        pending_store.set(key, pending.raw, next_kind, now=now)
+        raw = clarified_utility_raw(data) if pending.question_kind == "category_conflict" and next_kind == "utility" else pending.raw
+        pending_store.set(key, raw, next_kind, now=now)
         return clarification_question(data, next_kind)
 
     return format_missing(data)

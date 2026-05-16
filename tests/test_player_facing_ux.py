@@ -1,4 +1,4 @@
-from goldscale.clarification import PendingAppraisals, continue_appraisal, start_appraisal
+from goldscale.clarification import PendingAppraisals, start_appraisal
 
 
 KEY = (1, 10, 100)
@@ -36,7 +36,7 @@ This staff has 6 charges. You can expend 1 charge to cast cloudkill.""",
 
 def test_missing_utility_strength_asks_plain_language_question():
     pending = PendingAppraisals()
-    start_appraisal(
+    output = start_appraisal(
         """buy
 Wand of Wonder
 Wand, rare
@@ -47,9 +47,10 @@ This wand has 7 charges. Roll on the effects table.""",
         now=0,
     )
 
-    output = continue_appraisal("This table has randomized effects and no damage dice.", KEY, pending, now=10)
-
-    assert output == "How useful should this item count in your campaign: minor, reusable, or broad?"
+    assert "How useful should this item count in your campaign?" in output
+    assert "1. Minor, small or situational" in output
+    assert "2. Reusable, useful repeatable effect" in output
+    assert "3. Broad, flexible or broadly useful" in output
     assert "Try:" not in output
     assert "?gs buy" not in output
 

@@ -131,7 +131,10 @@ This wand has 7 charges. You can expend 1 charge to cast knock.""",
     )
 
     assert "I found spell text, but no damage or healing dice" in output
-    assert "How useful should this item count in your campaign: minor, reusable, or broad?" in output
+    assert "How useful should this item count in your campaign?" in output
+    assert "1. Minor, small or situational" in output
+    assert "2. Reusable, useful repeatable effect" in output
+    assert "3. Broad, flexible or broadly useful" in output
     assert "Final Price" not in output
     assert "?gs buy" not in output
 

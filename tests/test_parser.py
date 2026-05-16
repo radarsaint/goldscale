@@ -274,6 +274,31 @@ def test_quantity_dice_are_not_damage():
 
     assert data.damage is None
     assert data.healing is None
+    assert data.charges is None
+
+
+def test_scaling_bead_dice_are_not_base_damage():
+    data = parse_item_text(
+        "?gs buy necklace of fireballs rare wondrous item. Increase the damage by 1d6 for each bead after the first."
+    )
+
+    assert data.damage is None
+    assert data.healing is None
+
+
+def test_user_supplied_beads_count_as_charges():
+    data = parse_item_text("?gs buy necklace rare charged item 8d6 aoe 6 beads")
+
+    assert data.charges == 6
+
+
+def test_light_radius_does_not_trigger_aoe():
+    data = parse_item_text(
+        "?gs buy flame tongue rare weapon 2d6 damage. These flames shed Bright Light in a 40-foot radius and Dim Light for an additional 40 feet."
+    )
+
+    assert data.damage == "2d6"
+    assert data.aoe is False
 
 
 def test_explicit_area_shape_still_sets_aoe():

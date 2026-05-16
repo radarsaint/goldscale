@@ -376,11 +376,13 @@ def find_charges(text: str) -> Optional[int]:
         r"\b(\d+)\s+charges?\b",
         r"\bcharges?\s*[:=]?\s*(\d+)\b",
         r"\b(\d+)\s+uses?\b",
+        r"\b(\d+)\s+beads?\b",
     ]
 
     for pattern in patterns:
-        match = re.search(pattern, lower)
-        if match:
+        for match in re.finditer(pattern, lower):
+            if "bead" in match.group(0) and re.search(r"\d+d\d+\s*[+-]\s*$", lower[max(0, match.start() - 12):match.start()]):
+                continue
             return int(match.group(1))
 
     return None
@@ -576,6 +578,9 @@ def dice_is_recharge_or_table_roll(lower: str, start: int, end: int, allow_charg
     if re.match(r"^[\s,]*(beads?|stars?|charges?|uses?)\b", after_dice):
         return True
 
+    if re.match(r"^[\s,]*(?:for|per)\s+(?:each|every|additional)?\s*(?:bead|charge|use)\b", after_dice):
+        return True
+
     # Strongly reject dice whose nearby noun is charges, unless it is clearly damage/healing.
     if "charge" in window and not any(term in window for term in ("damage", "healing", "hit points")):
         if allow_charge_count_clause and re.match(r"^[\s,]*(?:aoe|area of effect)?[\s,]*\d+\s+charges?\b", after_dice):
@@ -634,6 +639,14 @@ def find_aoe(text: str) -> bool:
         r"\bcreatures within\b",
         r"\ball creatures within\b",
     ]
+
+    if re.search(r"\b(?:bright|dim)\s+light\b", lower):
+        lightless = re.sub(
+            r"\b(?:bright|dim)\s+light\b.{0,80}?\b(?:radius|sphere|cone|cube|cylinder|line)\b",
+            " ",
+            lower,
+        )
+        lower = lightless
 
     return any(re.search(pattern, lower) for pattern in safe_patterns)
 

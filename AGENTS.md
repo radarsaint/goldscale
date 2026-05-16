@@ -4,6 +4,9 @@ Goldscale is a Discord.py bot for deterministic D&D 5e magic item pricing.
 
 Project rules:
 
+- Design for players first, not programmers.
+- Goldscale must not require users to learn command syntax or formula vocabulary as the default workflow. Commands may exist as shortcuts, but normal guidance should ask plain-language questions and accept plain-language replies.
+- Do not present retry commands as the primary solution to missing information.
 - Do not add JSON item databases.
 - Do not infer D&D item mechanics from item names.
 - Do not invent official prices.

@@ -290,7 +290,7 @@ While the sword is ablaze, it deals an extra 2d6 Fire damage on a hit."""
     assert "Impact: 2d6" in output
     assert "AoE" not in output
     assert "2d6 average = 7 impact" in output
-    assert "**Final Price**" in output
+    assert "**Final Price**\n**850 gp**" in output
 
 
 def test_missing_rarity_and_category_preserves_impact():

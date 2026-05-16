@@ -78,3 +78,15 @@ Randomized or table-driven items must ask for explicit utility strength. Recharg
 ```powershell
 python -m pytest
 ```
+
+## Troubleshooting
+
+If Goldscale sends repeated identical replies, multiple bot processes are probably running.
+Stop the extra Python processes, then start one fresh bot:
+
+```powershell
+Get-Process python
+Get-Process python | Stop-Process
+cd C:\Users\vhmfa\goldscale
+python goldscale_bot.py
+```

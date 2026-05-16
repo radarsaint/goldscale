@@ -4,6 +4,15 @@ from goldscale.clarification import PendingAppraisals, continue_appraisal, start
 KEY = (1, 10, 100)
 
 
+NECKLACE_TEXT = """buy
+Necklace of Fireballs
+Wondrous Item, rare
+Description
+This necklace has 1d6 + 3 beads hanging from it. You can take a Magic action to detach a bead and throw it up to 60 feet away. When it reaches the end of its trajectory, the bead detonates as a level 3 Fireball (save DC 15).
+
+You can hurl multiple beads, or even the whole necklace, at one time. When you do so, increase the damage of the Fireball by 1d6 for each bead after the first (maximum 12d6)."""
+
+
 def test_flame_tongue_prices_850_gp_without_light_radius_aoe():
     pending = PendingAppraisals()
     output = start_appraisal(
@@ -27,18 +36,7 @@ These flames shed Bright Light in a 40-foot radius and Dim Light for an addition
 
 def test_necklace_of_fireballs_paste_asks_for_beads_and_damage_dice():
     pending = PendingAppraisals()
-    output = start_appraisal(
-        """buy
-Necklace of Fireballs
-Wondrous Item, rare
-Description
-This necklace has 1d6 + 3 beads hanging from it. You can take a Magic action to detach a bead and throw it up to 60 feet away. When it reaches the end of its trajectory, the bead detonates as a level 3 Fireball (save DC 15).
-
-You can hurl multiple beads, or even the whole necklace, at one time. When you do so, increase the damage of the Fireball by 1d6 for each bead after the first (maximum 12d6).""",
-        KEY,
-        pending,
-        now=0,
-    )
+    output = start_appraisal(NECKLACE_TEXT, KEY, pending, now=0)
 
     assert "I found **Necklace of Fireballs**" in output
     assert "I need two details before I can price it" in output
@@ -52,18 +50,7 @@ You can hurl multiple beads, or even the whole necklace, at one time. When you d
 
 def test_necklace_followup_prices_explicit_beads_and_damage():
     pending = PendingAppraisals()
-    start_appraisal(
-        """buy
-Necklace of Fireballs
-Wondrous Item, rare
-Description
-This necklace has 1d6 + 3 beads hanging from it. You can take a Magic action to detach a bead and throw it up to 60 feet away. When it reaches the end of its trajectory, the bead detonates as a level 3 Fireball (save DC 15).
-
-You can hurl multiple beads, or even the whole necklace, at one time. When it does so, increase the damage of the Fireball by 1d6 for each bead after the first (maximum 12d6).""",
-        KEY,
-        pending,
-        now=0,
-    )
+    start_appraisal(NECKLACE_TEXT, KEY, pending, now=0)
 
     output = continue_appraisal("6 beads, 8d6", KEY, pending, now=10)
 
@@ -71,4 +58,30 @@ You can hurl multiple beads, or even the whole necklace, at one time. When it do
     assert "AoE: Yes" in output
     assert "Charges: 6" in output
     assert "Final Price" in output
+    assert "134,500 gp" in output
+
+
+def test_necklace_followup_prices_bare_bead_count_with_damage():
+    pending = PendingAppraisals()
+    start_appraisal(NECKLACE_TEXT, KEY, pending, now=0)
+
+    output = continue_appraisal("6 8d6", KEY, pending, now=10)
+
+    assert "Damage: 8d6" in output
+    assert "AoE: Yes" in output
+    assert "Charges: 6" in output
+    assert "Final Price" in output
+    assert "134,500 gp" in output
+    assert "22,500 gp" not in output
+
+
+def test_necklace_followup_prices_damage_before_uses():
+    pending = PendingAppraisals()
+    start_appraisal(NECKLACE_TEXT, KEY, pending, now=0)
+
+    output = continue_appraisal("8d6, 6 uses", KEY, pending, now=10)
+
+    assert "Damage: 8d6" in output
+    assert "AoE: Yes" in output
+    assert "Charges: 6" in output
     assert "134,500 gp" in output

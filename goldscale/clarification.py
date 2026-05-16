@@ -339,10 +339,15 @@ def parse_dice_answer(answer: str) -> tuple[Optional[str], Optional[str]]:
     return expr, None
 
 
-def parse_count_answer(answer: str) -> Optional[int]:
+def parse_count_answer(answer: str, allow_bare: bool = False) -> Optional[int]:
     match = re.search(r"\b(\d+)\s+(?:charges?|uses?|beads?)\b", answer.lower())
     if match:
         return int(match.group(1))
+    if allow_bare:
+        without_dice = re.sub(r"\b\d+d\d+(?:\s*[+-]\s*\d+)?\b", " ", answer.lower())
+        match = re.search(r"\b(\d+)\b", without_dice)
+        if match:
+            return int(match.group(1))
     return None
 
 
@@ -434,7 +439,7 @@ def apply_answer(data: ItemData, pending: PendingAppraisal, answer: str) -> Item
     if healing:
         data.healing = healing
 
-    count = parse_count_answer(answer)
+    count = parse_count_answer(answer, allow_bare=pending.question_kind == "beads_damage" and damage is not None)
     if count:
         data.charges = count
 
